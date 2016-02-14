@@ -28,7 +28,7 @@ images = [
 ]
 images = ['../Images/' + img for img in images]
 
-img = cv2.imread(images[6],cv2.IMREAD_COLOR) # loads the image file
+img = cv2.imread(images[11],cv2.IMREAD_COLOR) # loads the image file
 
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) # converts images from BGR to hsv
 
@@ -37,6 +37,14 @@ lower_green = np.array([75,70,70])
 upper_green = np.array([95,255,255])
 
 mask = cv2.inRange(hsv, lower_green, upper_green) # creates a grayscale image using the above range of values
+cv2.imshow('initial', mask)
+
+kernel = np.ones((3,3),np.uint8)
+# erodes and dilates the image
+mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+# dilates and erodes the image
+mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+cv2.imshow('final', mask)
 
 res = cv2.bitwise_and(img, img, mask = mask) # uses mask to create a color image within the range values
 
@@ -99,17 +107,13 @@ def area_test(cnt):
 
 print len(contours)
 for contour in contours:
-    text = ""
     if five_eighths_test(contour, mask) and area_test(contour):
-        text = "True"
-    else:
-        text = "False"
-    label_point = min(contour, key=sq_distance_to_point(640, 480))
-    labelX, labelY = label_point[0]
-    font = cv2.FONT_HERSHEY_PLAIN
-    cv2.putText(edges,text,(labelX,labelY), font, 1.0, (255,255,255), 1, False)
+        label_point = min(contour, key=sq_distance_to_point(640, 480))
+        labelX, labelY = label_point[0]
+        font = cv2.FONT_HERSHEY_PLAIN
+        cv2.putText(edges,"True",(labelX,labelY), font, 1.0, (255,255,255), 1, False)
 
-cnt = contours[1] # assigns a specific contour to be the U (should be replaced by contour test)
+cnt = contours[2] # assigns a specific contour to be the U (should be replaced by contour test)
 
 print five_eighths_test(cnt, mask)
 print area_test(cnt)
