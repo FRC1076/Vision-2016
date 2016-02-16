@@ -1,7 +1,11 @@
+from __future__ import division
+
 import numpy as np
 import cv2
 import sys
 import socket
+
+FIELD_OF_VIEW = 65
 
 # finds the distance between 2 points
 def distance_between_points(p1, p2):
@@ -33,12 +37,12 @@ def perimeter(cnt):
 
 # tests five eighths down the center of the object is not part 
 # of the object, insuring it's a U shape
-def five_eighths_test(cnt, img):
+def five_eighths_test(cnt, img, width, height):
     # finds the diagonal extreme of the contour
     upper_left = min(cnt, key=sq_distance_to_point(0, 0))
-    upper_right = min(cnt, key=sq_distance_to_point(640, 0))
-    bottom_left = min(cnt, key=sq_distance_to_point(0, 480))
-    bottom_right = min(cnt, key=sq_distance_to_point(640, 480))
+    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
+    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
+    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
 
     # finds height of the U
     left_height = distance_between_points(upper_left, bottom_left)
@@ -57,16 +61,16 @@ def five_eighths_test(cnt, img):
     return (img[midY:testY, testX] == 0).all()
 
 # tests if the area of the contour is within 2 values
-def area_test(cnt):
-    return 400 < area(cnt) < 5000
+def area_test(cnt, width, height):
+    return width*height*0.001 < area(cnt) < width*height*0.01
 
 # determines the degrees of the U off from the middle
-def find_heading(cnt):
+def find_heading(cnt, width, height):
     # finds the diagonal extremes of the contour
     upper_left = min(cnt, key=sq_distance_to_point(0, 0))
-    upper_right = min(cnt, key=sq_distance_to_point(640, 0))
-    bottom_left = min(cnt, key=sq_distance_to_point(0, 480))
-    bottom_right = min(cnt, key=sq_distance_to_point(640, 480))
+    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
+    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
+    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
 
     #finds the midpoint
     midpoint_upper = midpoint(upper_left, upper_right)
@@ -75,16 +79,16 @@ def find_heading(cnt):
     botX, botY = midpoint_bottom
     mid = (upX + botX)/2, (upY + botY)/2
     midX, midY = mid
-    pixel_distance = midX - 320
-    return (32.5 * pixel_distance)/320
+    pixel_distance = midX - width/2
+    return ((FIELD_OF_VIEW/2.0) * pixel_distance)/(width/2)
 
 # determines the distance of the U from the robot in inches
-def find_distance(cnt):
+def find_distance(cnt, width, height):
     # find the diagonal extremes of the contour
     upper_left = min(cnt, key=sq_distance_to_point(0, 0))
-    upper_right = min(cnt, key=sq_distance_to_point(640, 0))
-    bottom_left = min(cnt, key=sq_distance_to_point(0, 480))
-    bottom_right = min(cnt, key=sq_distance_to_point(640, 480))
+    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
+    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
+    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
 
     # finds the left and right X values
     left_mid = midpoint(upper_left, bottom_left)
@@ -92,7 +96,7 @@ def find_distance(cnt):
     leftX, leftY = left_mid
     rightX, rightY = right_mid
     pixel_distance = abs(rightX - leftX)
-    return ((11000/pixel_distance)**2 - 6724)**0.5
+    return ((17.25/(pixel_distance/width))**2 - 6724)**0.5
 
 #sets the video capture
 cap = cv2.VideoCapture(0)
@@ -100,6 +104,7 @@ cap = cv2.VideoCapture(0)
 while(True):
     # captures each frame individually
     ret, frame = cap.read()
+    height, width, channels = frame.shape
 
     # converts frame from BGR to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -142,19 +147,18 @@ while(True):
     shapes = [False]*num_of_contours
     count = 0
     for contour in contours:
-        print "5/8 {}".format(five_eighths_test(contour, mask))
-        print "Area: {}".format(area_test(contour))
+        print "5/8 {}".format(five_eighths_test(contour, mask, width, height))
+        print "Area: {}".format(area_test(contour, width, height))
         print "Area: " + str(area(contour))
-        if five_eighths_test(contour, mask) and area_test(contour):
+        if five_eighths_test(contour, mask, width, height) and area_test(contour, width, height):
             print "True"
             shapes[count] = True
-            label_point = min(contour, key=sq_distance_to_point(640, 480))
+            label_point = min(contour, key=sq_distance_to_point(width, height))
             labelX, labelY = label_point[0]
-            heading = find_heading(contour)
-            distance = find_distance(contour)
+            heading = find_heading(contour, width, height)
+            distance = find_distance(contour, width, height)
             status = "OK"
             font = cv2.FONT_HERSHEY_PLAIN
-            # message = "CV = H" + str(heading) + " D" + str(distance)
             message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
             sock.sendto(message, (ip, port))
             cv2.putText(edges, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
@@ -165,3 +169,4 @@ while(True):
     k = cv2.waitKey(0)
     if k == 27:         # wait for ESC key to exit
         cv2.destroyAllWindows()
+        break;
