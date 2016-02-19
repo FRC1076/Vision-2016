@@ -4,6 +4,10 @@ import numpy as np
 import cv2
 import sys
 import socket
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 FIELD_OF_VIEW = 65
 
@@ -62,7 +66,7 @@ def five_eighths_test(cnt, img, width, height):
 
 # tests if the area of the contour is within 2 values
 def area_test(cnt, width, height):
-    return width*height*0.001 < area(cnt) < width*height*0.01
+    return width*height*0.0001 < area(cnt) < width*height*0.015
 
 # determines the degrees of the U off from the middle
 def find_heading(cnt, width, height):
@@ -82,7 +86,7 @@ def find_heading(cnt, width, height):
     pixel_distance = midX - width/2
     return ((FIELD_OF_VIEW/2.0) * pixel_distance)/(width/2)
 
-# determines the distance of the U from the robot in inches
+# determines the distance of the U from the robot in inches (NOTE!!! NOT ACCURATE)
 def find_distance(cnt, width, height):
     # find the diagonal extremes of the contour
     upper_left = min(cnt, key=sq_distance_to_point(0, 0))
@@ -91,17 +95,20 @@ def find_distance(cnt, width, height):
     bottom_right = min(cnt, key=sq_distance_to_point(width, height))
 
     # finds the left and right X values
-    left_mid = midpoint(upper_left, bottom_left)
-    right_mid = midpoint(upper_right, bottom_right)
-    leftX, leftY = left_mid
-    rightX, rightY = right_mid
-    pixel_distance = abs(rightX - leftX)
+    bottom_leftX, bottom_leftY = bottom_left[0]
+    bottom_rightX, bottom_rightY = bottom_right[0]
+    if bottom_leftY > bottom_rightY:
+        pixel_height = bottom_leftY - bottom_rightY
+    else:
+        pixel_height = bottom_rightY - bottom_leftY
+    pixel_width = abs(bottom_rightX - bottom_leftX)
+    pixel_distance = (pixel_width**2 + pixel_height**2)**0.5
     return ((17.25/(pixel_distance/width))**2 - 6724)**0.5
 
 #sets the video capture
 cap = cv2.VideoCapture(0)
 
-while(True):
+while True:
     # captures each frame individually
     ret, frame = cap.read()
     height, width, channels = frame.shape
@@ -147,26 +154,66 @@ while(True):
     shapes = [False]*num_of_contours
     count = 0
     for contour in contours:
-        print "5/8 {}".format(five_eighths_test(contour, mask, width, height))
-        print "Area: {}".format(area_test(contour, width, height))
-        print "Area: " + str(area(contour))
-        if five_eighths_test(contour, mask, width, height) and area_test(contour, width, height):
-            print "True"
+        passes_five_eighths = five_eighths_test(contour, mask, width, height)
+        passes_area = area_test(contour, width, height)
+        if passes_five_eighths and passes_area:
+            shapes[count] = True
+        count += 1
+    num_of_U = 0
+    x_values = [0]*num_of_contours
+    for shape in shapes:
+        if shape:
+            num_of_U += 1
+    count = 0
+    if num_of_U > 1:
+        for contour in contours:
+            coordinate = min(contour, key=sq_distance_to_point(0, height))
+            x_coor, y_coor = coordinate[0]
+            if shapes[count]:
+                x_values[count] = x_coor
+            else:
+                x_values[count] = 10000
+            count += 1
+    x_values.sort()
+    targetX = x_values[0]
+    count = 0
+    for contour in contours:
+        passes_five_eighths = five_eighths_test(contour, mask, width, height)
+        passes_area = area_test(contour, width, height)
+        logger.debug("5/8 %s", passes_five_eighths)
+        logger.debug("Area: %s", passes_area)
+        logger.debug("Area: %f", area(contour))
+        if passes_five_eighths and passes_area:
+            logger.debug("True")
             shapes[count] = True
             label_point = min(contour, key=sq_distance_to_point(width, height))
             labelX, labelY = label_point[0]
             heading = find_heading(contour, width, height)
             distance = find_distance(contour, width, height)
-            status = "OK"
-            font = cv2.FONT_HERSHEY_PLAIN
-            message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
+            if num_of_U == 0:
+                message = "VStatus=NO TARGET"
+            elif num_of_U == 1:
+                font = cv2.FONT_HERSHEY_PLAIN
+                status = "OK"
+                message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
+            elif num_of_U == 2:
+                font = cv2.FONT_HERSHEY_PLAIN
+                coordinate = min(contour, key=sq_distance_to_point(0, height))
+                x_coor, y_coor = coordinate[0]
+                if targetX == x_coor:
+                    status = "LEFT"
+                else:
+                    status = "RIGHT"
+                message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
+            else:
+                message = "VStatus=TOO MANY TARGETS"
             sock.sendto(message, (ip, port))
             cv2.putText(edges, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
-    count += 1
+        count += 1
 
     # displays the frame with labels
     cv2.imshow('edges', edges)
     k = cv2.waitKey(0)
     if k == 27:         # wait for ESC key to exit
         cv2.destroyAllWindows()
-        break;
+        break
