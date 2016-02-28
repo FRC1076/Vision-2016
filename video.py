@@ -6,6 +6,7 @@ import sys
 import socket
 import logging
 import time
+import colorsys
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -107,10 +108,33 @@ def find_distance(cnt, width, height):
     pixel_distance = (pixel_width**2 + pixel_height**2)**0.5
     return ((17.25/(pixel_distance/width))**2 - 6724)**0.5
 
-#sets the video capture
+def nothing(x):
+    pass
+
+# sets the video capture
 cap = cv2.VideoCapture(0)
 
-while True:
+# creates slider windows
+lower = np.zeros((300,512,3), np.uint8)
+cv2.namedWindow('lower')
+upper = np.zeros((300,512,3), np.uint8)
+cv2.namedWindow('upper')
+
+# creates the rgb trackbars
+switch = '0 : OFF \n1 : ON'
+cv2.createTrackbar('R','lower',0,255,nothing)
+cv2.createTrackbar('G','lower',0,255,nothing)
+cv2.createTrackbar('B','lower',0,255,nothing)
+cv2.createTrackbar(switch, 'lower',0,1,nothing)
+cv2.createTrackbar('R','upper',0,255,nothing)
+cv2.createTrackbar('G','upper',0,255,nothing)
+cv2.createTrackbar('B','upper',0,255,nothing)
+cv2.createTrackbar(switch, 'upper',0,1,nothing)
+
+while (1):
+    k = cv2.waitKey(1) & 0xFF
+    if k == 27:
+        break
     start_time = time.time()
     # captures each frame individually
     ret, frame = cap.read()
@@ -119,9 +143,39 @@ while True:
     # converts frame from BGR to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
+    # lower rgb values
+    lower_r = cv2.getTrackbarPos('R','lower')
+    lower_g = cv2.getTrackbarPos('G','lower')
+    lower_b = cv2.getTrackbarPos('B','lower')
+    lower_switch = cv2.getTrackbarPos(switch,'lower')
+    if lower_switch == 0:
+        lower[:] = 0
+    else:
+        lower[:] = [lower_b,lower_g,lower_r]
+    cv2.imshow('lower', lower)
+
+    # upper rgb values
+    upper_r = cv2.getTrackbarPos('R','upper')
+    upper_g = cv2.getTrackbarPos('G','upper')
+    upper_b = cv2.getTrackbarPos('B','upper')
+    upper_switch = cv2.getTrackbarPos(switch,'upper')
+    if upper_switch == 0:
+        upper[:] = 0
+    else:
+        upper[:] = [upper_b,upper_g,upper_r]
+    cv2.imshow('upper', upper)
+
+    # lower hsv values
+    lower_hsv = colorsys.rgb_to_hsv(lower_r, lower_g, lower_b)
+    lower_h, lower_s, lower_v = lower_hsv
+
+    # upper hsv values
+    upper_hsv = colorsys.rgb_to_hsv(upper_r, upper_g, upper_b)
+    upper_h, upper_s, upper_v = upper_hsv
+
     # range of HSV color values
-    lower_green = np.array([75, 70, 70])
-    upper_green = np.array([95, 255, 255])
+    lower_green = np.array([lower_h, lower_s, lower_v])
+    upper_green = np.array([upper_h, upper_s, upper_v])
 
     # creates a grayscale image using the above range of values
     mask = cv2.inRange(hsv, lower_green, upper_green)
@@ -197,7 +251,7 @@ while True:
     # sets the message for no targets and sends
     if num_of_U == 0:
         message = "VStatus=NO TARGET"
-        sock.sendto(message, (ip, port))
+    #    sock.sendto(message, (ip, port))
     # sets the message for the correct number of target (may send 2 messages) and sends
     elif 1 <= num_of_U <= 2:
         count = 0
@@ -225,13 +279,13 @@ while True:
                         status = "RIGHT"
                     message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
                 # sends the message
-                sock.sendto(message, (ip, port))
+                #sock.sendto(message, (ip, port))
                 cv2.putText(frame, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
             count += 1
     # sets the message for too many targets and sends
     else:
         message = "VStatus=TOO MANY TARGETS"
-        sock.sendto(message, (ip, port))
+        #sock.sendto(message, (ip, port))
     time.sleep(.01)
     # displays the frame with labels
     end_time = time.time()
@@ -241,7 +295,7 @@ while True:
     average = str(sum(fps_stats)/len(fps_stats))
     font = cv2.FONT_HERSHEY_PLAIN
     cv2.putText(frame, average, (width - 100, height - 100), font, 1.0, (255, 255, 255), 1, False)
-    cv2.imshow('edges', frame)
+    cv2.imshow('edges', mask)
     #k = cv2.waitKey(0)
     #if k == 27:         # wait for ESC key to exit
     #    cv2.destroyAllWindows()
