@@ -5,11 +5,13 @@ import cv2
 import sys
 import socket
 import logging
+import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 FIELD_OF_VIEW = 65
+fps_stats = []
 
 # finds the distance between 2 points
 def distance_between_points(p1, p2):
@@ -66,7 +68,7 @@ def five_eighths_test(cnt, img, width, height):
 
 # tests if the area of the contour is within 2 values
 def area_test(cnt, width, height):
-    return width*height*0.0001 < area(cnt) < width*height*0.015
+    return width*height*0.00005 < area(cnt) < width*height*0.02
 
 # determines the degrees of the U off from the middle
 def find_heading(cnt, width, height):
@@ -109,6 +111,7 @@ def find_distance(cnt, width, height):
 cap = cv2.VideoCapture(0)
 
 while True:
+    start_time = time.time()
     # captures each frame individually
     ret, frame = cap.read()
     height, width, channels = frame.shape
@@ -127,7 +130,9 @@ while True:
     kernel = np.ones((3,3),np.uint8)
     # erodes and dilates the image
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     # dilates and erodes the image
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
     # uses mask to create a color image within the range values
@@ -141,17 +146,10 @@ while True:
     ret, thresh = cv2.threshold(imgray, 127, 255, 0)
     contours, hierarchy  = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # sets up UDP sender
-    if len(sys.argv) > 1:
-        ip = sys.argv[1]
-    else:
-        ip = '172.16.1.227'
-    port = 5880
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    # tests the contours and determines which ones are U's
+    # reads the number of contours identified and creates a boolean array of that length
     num_of_contours = len(contours)
     shapes = [False]*num_of_contours
+    # fills in the boolean array of whether or not a shape is a U
     count = 0
     for contour in contours:
         passes_five_eighths = five_eighths_test(contour, mask, width, height)
@@ -159,12 +157,16 @@ while True:
         if passes_five_eighths and passes_area:
             shapes[count] = True
         count += 1
+
+    # determines the number of U's
     num_of_U = 0
-    x_values = [0]*num_of_contours
     for shape in shapes:
         if shape:
             num_of_U += 1
+
+    # saves the bottom-left X value of each U, or 10000 if not a U
     count = 0
+    x_values = [0]*num_of_contours
     if num_of_U > 1:
         for contour in contours:
             coordinate = min(contour, key=sq_distance_to_point(0, height))
@@ -174,46 +176,73 @@ while True:
             else:
                 x_values[count] = 10000
             count += 1
+    # sorts the x_values array in ascending numerical order
     x_values.sort()
-    targetX = x_values[0]
-    count = 0
-    for contour in contours:
-        passes_five_eighths = five_eighths_test(contour, mask, width, height)
-        passes_area = area_test(contour, width, height)
-        logger.debug("5/8 %s", passes_five_eighths)
-        logger.debug("Area: %s", passes_area)
-        logger.debug("Area: %f", area(contour))
-        if passes_five_eighths and passes_area:
-            logger.debug("True")
-            shapes[count] = True
-            label_point = min(contour, key=sq_distance_to_point(width, height))
-            labelX, labelY = label_point[0]
-            heading = find_heading(contour, width, height)
-            distance = find_distance(contour, width, height)
-            if num_of_U == 0:
-                message = "VStatus=NO TARGET"
-            elif num_of_U == 1:
-                font = cv2.FONT_HERSHEY_PLAIN
-                status = "OK"
-                message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
-            elif num_of_U == 2:
-                font = cv2.FONT_HERSHEY_PLAIN
-                coordinate = min(contour, key=sq_distance_to_point(0, height))
-                x_coor, y_coor = coordinate[0]
-                if targetX == x_coor:
-                    status = "LEFT"
-                else:
-                    status = "RIGHT"
-                message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
-            else:
-                message = "VStatus=TOO MANY TARGETS"
-            sock.sendto(message, (ip, port))
-            cv2.putText(edges, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
-        count += 1
+    # sets the target x-value as the lowest x-value
+    if num_of_U > 0:
+        targetX = x_values[0]
+    else:
+        targetX = 0
 
+    # sets up UDP sender
+    if len(sys.argv) > 1:
+        ip = sys.argv[1]
+    else:
+        ip = '172.16.1.234'
+    port = 5880
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    # determines the UDP message
+    message = ''
+    # sets the message for no targets and sends
+    if num_of_U == 0:
+        message = "VStatus=NO TARGET"
+        sock.sendto(message, (ip, port))
+    # sets the message for the correct number of target (may send 2 messages) and sends
+    elif 1 <= num_of_U <= 2:
+        count = 0
+        for contour in contours:
+            if shapes[count]:
+                # sets the point at which the origin of the text label is placed on the image
+                label_point = min(contour, key=sq_distance_to_point(width, height))
+                labelX, labelY = label_point[0]
+                # determines the heading of this U
+                heading = find_heading(contour, width, height)
+                # determines the distance of this U
+                distance = find_distance(contour, width, height)
+                # actually sets the message based on number of U's
+                if num_of_U == 1:
+                    font = cv2.FONT_HERSHEY_PLAIN
+                    status = "OK"
+                    message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
+                else:
+                    font = cv2.FONT_HERSHEY_PLAIN
+                    coordinate = min(contour, key=sq_distance_to_point(0, height))
+                    x_coor, y_coor = coordinate[0]
+                    if targetX == x_coor:
+                        status = "LEFT"
+                    else:
+                        status = "RIGHT"
+                    message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
+                # sends the message
+                sock.sendto(message, (ip, port))
+                cv2.putText(frame, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
+            count += 1
+    # sets the message for too many targets and sends
+    else:
+        message = "VStatus=TOO MANY TARGETS"
+        sock.sendto(message, (ip, port))
+    time.sleep(.01)
     # displays the frame with labels
-    cv2.imshow('edges', edges)
-    k = cv2.waitKey(0)
-    if k == 27:         # wait for ESC key to exit
-        cv2.destroyAllWindows()
-        break
+    end_time = time.time()
+    time_difference = end_time - start_time
+    fps = 1/time_difference
+    fps_stats.append(fps)
+    average = str(sum(fps_stats)/len(fps_stats))
+    font = cv2.FONT_HERSHEY_PLAIN
+    cv2.putText(frame, average, (width - 100, height - 100), font, 1.0, (255, 255, 255), 1, False)
+    cv2.imshow('edges', frame)
+    #k = cv2.waitKey(0)
+    #if k == 27:         # wait for ESC key to exit
+    #    cv2.destroyAllWindows()
+    #    break
