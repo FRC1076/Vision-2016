@@ -5,6 +5,7 @@ import cv2
 import sys
 import socket
 import logging
+import pdb
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -113,6 +114,9 @@ while True:
     ret, frame = cap.read()
     height, width, channels = frame.shape
 
+    cv2.imshow('source', frame)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
     # converts frame from BGR to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -139,6 +143,8 @@ while True:
     # finds contours
     imgray = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
     ret, thresh = cv2.threshold(imgray, 127, 255, 0)
+    cv2.imshow('thresh', thresh)
+    cv2.waitKey(1)
     contours, hierarchy  = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     # sets up UDP sender
@@ -175,6 +181,9 @@ while True:
                 x_values[count] = 10000
             count += 1
     x_values.sort()
+    print len(x_values)
+    if (len(x_values)<1):
+        continue
     targetX = x_values[0]
     count = 0
     for contour in contours:
@@ -183,6 +192,7 @@ while True:
         logger.debug("5/8 %s", passes_five_eighths)
         logger.debug("Area: %s", passes_area)
         logger.debug("Area: %f", area(contour))
+        print "195"
         if passes_five_eighths and passes_area:
             logger.debug("True")
             shapes[count] = True
@@ -190,6 +200,7 @@ while True:
             labelX, labelY = label_point[0]
             heading = find_heading(contour, width, height)
             distance = find_distance(contour, width, height)
+            print "202"
             if num_of_U == 0:
                 message = "VStatus=NO TARGET"
             elif num_of_U == 1:
@@ -213,7 +224,7 @@ while True:
 
     # displays the frame with labels
     cv2.imshow('edges', edges)
-    k = cv2.waitKey(0)
+    k = cv2.waitKey(1)
     if k == 27:         # wait for ESC key to exit
         cv2.destroyAllWindows()
         break
