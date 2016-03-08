@@ -7,6 +7,7 @@ import socket
 import logging
 import time
 import colorsys
+import pdb
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -140,6 +141,9 @@ while (1):
     ret, frame = cap.read()
     height, width, channels = frame.shape
 
+    cv2.imshow('source', frame)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
     # converts frame from BGR to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -205,9 +209,19 @@ while (1):
     # finds contours
     imgray = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
     ret, thresh = cv2.threshold(imgray, 127, 255, 0)
+    cv2.imshow('thresh', thresh)
+    cv2.waitKey(1)
     contours, hierarchy  = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # reads the number of contours identified and creates a boolean array of that length
+    # sets up UDP sender
+    if len(sys.argv) > 1:
+        ip = sys.argv[1]
+    else:
+        ip = '172.16.1.227'
+    port = 5880
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    # tests the contours and determines which ones are U's
     num_of_contours = len(contours)
     shapes = [False]*num_of_contours
     # fills in the boolean array of whether or not a shape is a U
@@ -221,13 +235,13 @@ while (1):
 
     # determines the number of U's
     num_of_U = 0
+    x_values = [0]*num_of_contours
     for shape in shapes:
         if shape:
             num_of_U += 1
 
     # saves the bottom-left X value of each U, or 10000 if not a U
     count = 0
-    x_values = [0]*num_of_contours
     if num_of_U > 1:
         for contour in contours:
             coordinate = min(contour, key=sq_distance_to_point(0, height))

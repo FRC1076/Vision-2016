@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-img = cv2.imread('Software/Vision/Images/2016-01-23 16-06-42.285.jpg',cv2.IMREAD_UNCHANGED)
+img = cv2.imread('Images/2016-01-23 16-06-42.285.jpg',cv2.IMREAD_UNCHANGED)
 
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 

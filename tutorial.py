@@ -5,7 +5,7 @@ import cv2
 def nothing(x):
 	pass
 
-img = cv2.imread('Software/Vision/Images/2016-01-23 16-06-42.285.jpg', cv2.IMREAD_UNCHANGED)
+img = cv2.imread('Images/2016-01-23 16-06-42.285.jpg', cv2.IMREAD_UNCHANGED)
 if img is None:
 	print("Image not found")
 	exit(1)

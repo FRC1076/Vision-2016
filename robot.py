@@ -26,7 +26,7 @@ images = [
     '2016-01-23 16-12-11.103.jpg',
     'GreenTape1.png',
 ]
-images = ['../Images/' + img for img in images]
+images = ['Images/' + img for img in images]
 
 img = cv2.imread(images[6],cv2.IMREAD_COLOR) # loads the image file
 

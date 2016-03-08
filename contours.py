@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-img = cv2.imread('Software/Vision/Images/2016-01-23 16-05-26.825.jpg',cv2.IMREAD_COLOR)
+img = cv2.imread('Images/2016-01-23 16-05-26.825.jpg',cv2.IMREAD_COLOR)
 imgray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 ret,thresh = cv2.threshold(imgray,127,255,0)
 contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
