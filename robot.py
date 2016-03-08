@@ -28,7 +28,7 @@ images = [
 ]
 images = ['../Images/' + img for img in images]
 
-img = cv2.imread(images[11],cv2.IMREAD_COLOR) # loads the image file
+img = cv2.imread(images[6],cv2.IMREAD_COLOR) # loads the image file
 
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) # converts images from BGR to hsv
 
@@ -105,7 +105,7 @@ def five_eighths_test(cnt, img):
 def area_test(cnt):
     return 400 < area(cnt) < 2500
 
-print len(contours)
+#print len(contours)
 for contour in contours:
     if five_eighths_test(contour, mask) and area_test(contour):
         label_point = min(contour, key=sq_distance_to_point(640, 480))
@@ -113,10 +113,103 @@ for contour in contours:
         font = cv2.FONT_HERSHEY_PLAIN
         cv2.putText(edges,"True",(labelX,labelY), font, 1.0, (255,255,255), 1, False)
 
-cnt = contours[2] # assigns a specific contour to be the U (should be replaced by contour test)
+def slope_test(cnt, img, width, height):
+    # finds the diagonal extreme of the contour
+    upper_left = min(cnt, key=sq_distance_to_point(0, 0))
+    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
+    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
+    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
 
-print five_eighths_test(cnt, mask)
-print area_test(cnt)
+    # finds half the width of the tape
+    left_height = distance_between_points(upper_left, bottom_left)
+    right_height = distance_between_points(upper_right, bottom_right)
+    if left_height > right_height:
+        height = 0.0833333333*left_height
+    else:
+        height = 0.0833333333*right_height
+
+    #finds the slope of the bottom points
+    bottom_leftX, bottom_leftY = bottom_left[0]
+    bottom_rightX, bottom_rightY = bottom_right[0]
+    slope = (bottom_leftY - bottom_rightY)/(bottom_leftX - bottom_rightX)
+
+    test_point = bottom_leftX + height, bottom_leftY - height
+    testX, testY = test_point
+    final_point = bottom_rightX - height, bottom_rightY - height
+    finalX, finalY = final_point
+
+    width = finalX - testX
+    lower_slope_tests = [False]*width
+    count = 0
+    while count < width - 1:
+        lower_slope_tests[count] = img[slope*count + testY, testX + count] > 0
+        count += 1
+
+    tolerance = width*0.1
+    count = 0
+    bad_data = 0
+    while count < width - 1:
+        if not lower_slope_tests[count]:
+            bad_data += 1
+        count += 1
+    if bad_data < tolerance:
+        return True
+    return False
+
+def empty_test(cnt, img, width, height):
+    # finds the diagonal extreme of the contour
+    upper_left = min(cnt, key=sq_distance_to_point(0, 0))
+    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
+    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
+    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
+
+    # finds half the width of the tape
+    left_height = distance_between_points(upper_left, bottom_left)
+    right_height = distance_between_points(upper_right, bottom_right)
+    if left_height > right_height:
+        height = 0.0833333333*left_height
+    else:
+        height = 0.0833333333*right_height
+
+    #finds the slope of the bottom points
+    bottom_leftX, bottom_leftY = bottom_left[0]
+    bottom_rightX, bottom_rightY = bottom_right[0]
+    slope = (bottom_leftY - bottom_rightY)/(bottom_leftX - bottom_rightX)
+
+    test_point = bottom_leftX + height, bottom_leftY - height
+    testX, testY = test_point
+    print test_point
+    print img[testY, testX]
+
+    test_point = bottom_leftX + 3*height, bottom_leftY - 3*height
+    testX, testY = test_point
+    final_point = bottom_rightX - 3*height, bottom_rightY - 3*height
+    finalX, finalY = final_point
+
+    width = finalX - testX
+
+    # finds height of the U
+    left_height = distance_between_points(upper_left, bottom_left)
+    right_height = distance_between_points(upper_right, bottom_right)
+    U_height = (5/8)*(left_height + right_height)/2
+
+    test_pixels = [False]*(width*U_height)
+
+    place = 0
+    while place < (width-1)*U_height:
+        X = 0
+        Y = 0
+        while X < width - 1:
+            mask[slope*X + testY - Y, testX + X] = 1
+            test_pixels[place] = img[slope*X + testY - Y, testX + X] == 0
+            X += 1
+            place += 1
+        Y += 1
+    return test_pixels
+
+cnt = contours[1] # assigns a specific contour to be the U (should be replaced by contour test)
+
+empty_test(cnt, mask, 640, 480)
 
 # finds the diagonal extreme of the contour
 upper_left = min(cnt, key=sq_distance_to_point(0, 0))
