@@ -122,13 +122,13 @@ cv2.namedWindow('upper')
 
 # creates the rgb trackbars
 switch = '0 : OFF \n1 : ON'
-cv2.createTrackbar('R','lower',0,255,nothing)
-cv2.createTrackbar('G','lower',0,255,nothing)
-cv2.createTrackbar('B','lower',0,255,nothing)
+cv2.createTrackbar('H','lower',0,100,nothing)
+cv2.createTrackbar('S','lower',0,255,nothing)
+cv2.createTrackbar('V','lower',0,255,nothing)
 cv2.createTrackbar(switch, 'lower',0,1,nothing)
-cv2.createTrackbar('R','upper',0,255,nothing)
-cv2.createTrackbar('G','upper',0,255,nothing)
-cv2.createTrackbar('B','upper',0,255,nothing)
+cv2.createTrackbar('H','upper',0,100,nothing)
+cv2.createTrackbar('S','upper',0,255,nothing)
+cv2.createTrackbar('V','upper',0,255,nothing)
 cv2.createTrackbar(switch, 'upper',0,1,nothing)
 
 while (1):
@@ -143,35 +143,42 @@ while (1):
     # converts frame from BGR to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    # lower rgb values
-    lower_r = cv2.getTrackbarPos('R','lower')
-    lower_g = cv2.getTrackbarPos('G','lower')
-    lower_b = cv2.getTrackbarPos('B','lower')
+    # lower hsv values
+    lower_h = cv2.getTrackbarPos('H','lower')
+    lower_s = cv2.getTrackbarPos('S','lower')
+    lower_v = cv2.getTrackbarPos('V','lower')
     lower_switch = cv2.getTrackbarPos(switch,'lower')
+    
+
+    # upper rgb values
+    upper_h = cv2.getTrackbarPos('H','upper')
+    upper_s = cv2.getTrackbarPos('S','upper')
+    upper_v = cv2.getTrackbarPos('V','upper')
+    upper_switch = cv2.getTrackbarPos(switch,'upper')
+
+    # lower hsv values
+    lower_rgb = colorsys.hsv_to_rgb(lower_h, lower_s, lower_v)
+    lower_r, lower_g, lower_b = lower_rgb
     if lower_switch == 0:
         lower[:] = 0
     else:
         lower[:] = [lower_b,lower_g,lower_r]
+    font = cv2.FONT_HERSHEY_PLAIN
+    message = 'H: ' + str(lower_h) + ', S: ' + str(lower_s) + ', V: ' + str(lower_v)
+    cv2.putText(lower, message, (100, 100), font, 1.0, (0, 255, 255), 1, False)
     cv2.imshow('lower', lower)
 
-    # upper rgb values
-    upper_r = cv2.getTrackbarPos('R','upper')
-    upper_g = cv2.getTrackbarPos('G','upper')
-    upper_b = cv2.getTrackbarPos('B','upper')
-    upper_switch = cv2.getTrackbarPos(switch,'upper')
+    # upper hsv values
+    upper_rgb = colorsys.hsv_to_rgb(upper_h, upper_s, upper_v)
+    upper_r, upper_g, upper_b = upper_rgb
     if upper_switch == 0:
         upper[:] = 0
     else:
         upper[:] = [upper_b,upper_g,upper_r]
+    font = cv2.FONT_HERSHEY_PLAIN
+    message = 'H: ' + str(upper_h) + ', S: ' + str(upper_s) + ', V: ' + str(upper_v)
+    cv2.putText(upper, message, (100, 100), font, 1.0, (0, 255, 255), 1, False)
     cv2.imshow('upper', upper)
-
-    # lower hsv values
-    lower_hsv = colorsys.rgb_to_hsv(lower_r, lower_g, lower_b)
-    lower_h, lower_s, lower_v = lower_hsv
-
-    # upper hsv values
-    upper_hsv = colorsys.rgb_to_hsv(upper_r, upper_g, upper_b)
-    upper_h, upper_s, upper_v = upper_hsv
 
     # range of HSV color values
     lower_green = np.array([lower_h, lower_s, lower_v])
@@ -295,7 +302,7 @@ while (1):
     average = str(sum(fps_stats)/len(fps_stats))
     font = cv2.FONT_HERSHEY_PLAIN
     cv2.putText(frame, average, (width - 100, height - 100), font, 1.0, (255, 255, 255), 1, False)
-    cv2.imshow('edges', mask)
+    cv2.imshow('edges', res)
     #k = cv2.waitKey(0)
     #if k == 27:         # wait for ESC key to exit
     #    cv2.destroyAllWindows()
