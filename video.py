@@ -8,6 +8,7 @@ import logging
 import time
 import colorsys
 import pdb
+from sensor_message import VisionMessage, VisionLoggingMessage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -217,9 +218,16 @@ while (1):
     if len(sys.argv) > 1:
         ip = sys.argv[1]
     else:
-        ip = '172.16.1.227'
+        ip = 'roborio-1076-frc.local'
     port = 5880
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    vmessage = VisionMessage()
+    vlogging = VisionLoggingMessage()
+    vlogging.content = "witness the firepower of this fully operational vision system"
+    sock.sendto(vlogging.encode_message(), (ip, port))
+
+
 
     # tests the contours and determines which ones are U's
     num_of_contours = len(contours)
@@ -259,20 +267,12 @@ while (1):
     else:
         targetX = 0
 
-    # sets up UDP sender
-    if len(sys.argv) > 1:
-        ip = sys.argv[1]
-    else:
-        ip = '172.16.1.234'
-    port = 5880
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
     # determines the UDP message
     message = ''
     # sets the message for no targets and sends
     if num_of_U == 0:
-        message = "VStatus=NO TARGET"
-    #    sock.sendto(message, (ip, port))
+        vmessage.status = "error"
+        sock.sendto(vmessage.encode_message(), (ip, port))
     # sets the message for the correct number of target (may send 2 messages) and sends
     elif 1 <= num_of_U <= 2:
         count = 0
@@ -300,13 +300,16 @@ while (1):
                         status = "RIGHT"
                     message = "VTD={:.02f}, VTH={:.02f}, VStatus=".format(distance, heading) + status
                 # sends the message
-                #sock.sendto(message, (ip, port))
+                vmessage.range = distance
+                vmessage.heading = heading
+                vmessage.status = status
+                sock.sendto(vmessage.encode_message(), (ip, port))
                 cv2.putText(frame, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
             count += 1
     # sets the message for too many targets and sends
     else:
-        message = "VStatus=TOO MANY TARGETS"
-        #sock.sendto(message, (ip, port))
+        vmessage = "error"
+        sock.sendto(vmessage.encode_message(), (ip, port))
     time.sleep(.01)
     # displays the frame with labels
     end_time = time.time()
