@@ -11,10 +11,12 @@ import pdb
 import json
 
 tx_udp = True
-im_show = False
+im_show = False 
 sliders = False
 wait = False
-printer = False
+printer = True
+
+MIN_AREA = 1000
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -78,7 +80,20 @@ def five_eighths_test(cnt, img, width, height):
 # tests if the area of the contour is within 2 values
 def area_test(cnt, width, height):
     #return width*height*0.005 < area(cnt) < width*height*0.02
-    return area(cnt) > 1000
+    return area(cnt) > MIN_AREA
+
+def aspect_ratio(cnt):
+    # finds the diagonal extreme of the contour
+    upper_left = min(cnt, key=sq_distance_to_point(0, 0))
+    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
+    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
+    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
+    avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1])/2
+    avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][1] - bottom_left[0][1])/2
+    #   print avg_height,avg_width,avg_height / avg_width;
+    return avg_height / avg_width;
+	
+ 
 
 def vertical_test(cnt, img, width, height):
     # finds the diagonal extreme of the contour
@@ -293,9 +308,9 @@ while (1):
     # fills in the boolean array of whether or not a shape is a U
     count = 0
     for contour in contours:
-        passes_vertical = vertical_test(contour, mask, width, height)
+        # passes_vertical = vertical_test(contour, mask, width, height)
         passes_area = area_test(contour, width, height)
-        if passes_vertical and passes_area:
+        if passes_area and (aspect_ratio(contour) > 15):
             shapes[count] = True
         count += 1
 
