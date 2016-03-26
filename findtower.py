@@ -11,12 +11,16 @@ import pdb
 import json
 
 tx_udp = True
-im_show = False 
-sliders = False
+if "interactive" in sys.argv:
+    im_show = True
+    sliders = True
+else:
+    im_show = False
+    sliders = False
 wait = False
 printer = True
 
-MIN_AREA = 1000
+MIN_AREA = 500
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
