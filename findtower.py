@@ -3,30 +3,60 @@ from __future__ import division
 import numpy as np
 import cv2
 import sys
-import socket
 import logging
 import time
 import colorsys
-import pdb
 import json
+import socket
+from udp_channels import UDPChannel
+from sensor_message import RobotMessage, RobotTargetMessage
+
 
 tx_udp = True
 if "interactive" in sys.argv:
     im_show = True
     sliders = True
+    printer = True
+    wait = False
 else:
     im_show = False
     sliders = False
-wait = False
-printer = True
+    printer = False
+    wait = False
 
 MIN_AREA = 500
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO,filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
+
+def set_thresholds(target_color):
+    global lower_h, lower_s, lower_v
+    global upper_h, upper_s, upper_v
+    if target_color == "red":
+        print("Setting target color to red")
+        lower_h = 60
+        upper_h = 180
+        lower_s = 0
+        upper_s = 70
+        lower_v = 110
+        upper_v = 255
+    else:
+        print("Setting target color to blue")
+        lower_h = 85
+        upper_h = 108
+        lower_s = 28
+        upper_s = 255
+        lower_v = 0
+        upper_v = 255
 
 FIELD_OF_VIEW = 65
 fps_stats = []
+
+if "red" in sys.argv:
+    set_thresholds("red")
+else:
+    set_thresholds("blue")
+
 
 # finds the distance between 2 points
 def distance_between_points(p1, p2):
@@ -95,8 +125,10 @@ def aspect_ratio(cnt):
     avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1])/2
     avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][1] - bottom_left[0][1])/2
     #   print avg_height,avg_width,avg_height / avg_width;
-    return avg_height / avg_width;
-	
+    if avg_width <> 0:
+        return abs(avg_height / avg_width)
+    else:
+        return 0
  
 
 def vertical_test(cnt, img, width, height):
@@ -196,23 +228,36 @@ if sliders:
     cv2.createTrackbar('S','upper',0,255,nothing)
     cv2.createTrackbar('V','upper',0,255,nothing)
     cv2.createTrackbar(switch, 'upper',0,1,nothing)
-    cv2.setTrackbarPos('H', 'lower', 0)
-    cv2.setTrackbarPos('S', 'lower', 0)
-    cv2.setTrackbarPos('V', 'lower', 212)
-    cv2.setTrackbarPos('H', 'upper', 255)
-    cv2.setTrackbarPos('S', 'upper', 255)
-    cv2.setTrackbarPos('V', 'upper', 255)
+    cv2.setTrackbarPos('H', 'lower', lower_h)
+    cv2.setTrackbarPos('S', 'lower', lower_s)
+    cv2.setTrackbarPos('V', 'lower', lower_v)
+    cv2.setTrackbarPos('H', 'upper', upper_h)
+    cv2.setTrackbarPos('S', 'upper', upper_s)
+    cv2.setTrackbarPos('V', 'upper', upper_v)
 
 # sets up UDP sender
 if len(sys.argv) > 1:
    ip = sys.argv[1]
 else:
    ip = '10.10.76.2'
-port = 5880
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+
+channel = UDPChannel(remote_ip=ip, remote_port=5880,
+                     local_ip='0.0.0.0', local_port=5888, timeout_in_seconds=0.001)
 
 while (1):
-    k = cv2.waitKey(1) & 0xFF
+    try:
+        robot_data, robot_address = channel.receive_from()
+        print("YIKES!",robot_data)
+        message_from_robot = RobotMessage(robot_data)
+        if ((message_from_robot.sender == 'robot') and
+            (message_from_robot.message == 'target')):
+            set_thresholds(message_from_robot.color)
+            logger.info("Robot changed target color to %s",message_from_robot.color)
+    except socket.timeout as e:
+        logger.info("Timed out waiting for color setting: %s",e)
+
+    k = cv2.waitKey(10) & 0xFF
     if k == 27:
         break
     start_time = time.time()
@@ -265,13 +310,6 @@ while (1):
             cv2.imshow('upper', upper)
         else:
             pass
-    else:
-        lower_h = 0
-        lower_s = 0
-        lower_v = 212
-        upper_h = 255
-        upper_s = 255
-        upper_v = 255
 
     # range of HSV color values
     lower_green = np.array([lower_h, lower_s, lower_v])
@@ -281,10 +319,11 @@ while (1):
     mask = cv2.inRange(hsv, lower_green, upper_green)
 
     # sets the dilation and erosion factor
-    kernel = np.ones((25,5),np.uint8)
+    kernel = np.ones((20,5),np.uint8)
+    dots = np.ones((5,5),np.uint8)
     # erodes and dilates the image
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, dots)
     # dilates and erodes the image
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
@@ -300,8 +339,8 @@ while (1):
     # finds contours
     imgray = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
     ret, thresh = cv2.threshold(imgray, 0, 255, 0)
-    if im_show:
-        cv2.imshow('thresh', thresh)
+    #if im_show:
+    #    cv2.imshow('thresh', thresh)
     cv2.waitKey(1)
     contours, hierarchy  = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -314,8 +353,11 @@ while (1):
     for contour in contours:
         # passes_vertical = vertical_test(contour, mask, width, height)
         passes_area = area_test(contour, width, height)
-        if passes_area and (aspect_ratio(contour) > 15):
-            shapes[count] = True
+        if passes_area:
+            if (aspect_ratio(contour) > 10):
+                shapes[count] = True
+            else:
+                print "aspect ratio:",aspect_ratio(contour)
         count += 1
 
     # determines the number of U's
@@ -350,14 +392,15 @@ while (1):
     if num_of_U == 0:
         data = {
            "sender" : "vision",
-           "message" : "none",
+           "message" : "range and heading",
            "status" : "no target",
         }
         message = json.dumps(data)
 	if tx_udp:
-            sock.sendto(message, (ip, port))
+            channel.send_to(message)
             if printer:
                 print "Tx:" + message
+            logging.info(message)
     # sets the message for the correct number of target (may send 2 messages) and sends
     elif 1 <= num_of_U <= 1:
         count = 0
@@ -386,30 +429,32 @@ while (1):
                    "sender" : "vision",
                    "range" : distance,
                    "heading" : heading,
-                   "message" : "heading and range",
+                   "message" : "range and heading",
                    "status" : status,
                 }
                 message = json.dumps(data)
                 # sends the message
                 if tx_udp:
-                    sock.sendto(message, (ip, port))
+                    channel.send_to(message)
                     if printer:
 		        print "Tx:" + message
+                    logger.info(message)
                 cv2.putText(frame, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
             count += 1
     # sets the message for too many targets and sends
     else:
         data = {
            "sender" : "vision",
-           "message" : "none",
+           "message" : "range and heading",
             "status" : "too many targets",
         }
         message = json.dumps(data)
         if tx_udp:
-            sock.sendto(message, (ip, port))
+            channel.send_to(message)
             if printer:
 	        print "Tx:" + message
-    time.sleep(.01)
+            logger.info(message)
+    time.sleep(.1)
     # displays the frame with labels
     end_time = time.time()
     time_difference = end_time - start_time
@@ -418,8 +463,8 @@ while (1):
     average = str(sum(fps_stats)/len(fps_stats))
     font = cv2.FONT_HERSHEY_PLAIN
     cv2.putText(frame, average, (width - 100, height - 100), font, 1.0, (255, 255, 255), 1, False)
-    if im_show:
-        cv2.imshow('edges', res)
+    #if im_show:
+    #    cv2.imshow('edges', res)
     if wait:
         if not im_show:
             cv2.namedWindow('waitkey placeholder')
