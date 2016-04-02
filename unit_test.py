@@ -24,7 +24,7 @@ def test_image_grabber():
 
     ig = ImageGrabber(logger, 5, 5)
 
-    for i in range(40):
+    for i in range(30):
         # get an image
         ret, frame = cap.read()
 

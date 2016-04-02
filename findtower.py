@@ -10,8 +10,10 @@ import json
 import socket
 from udp_channels import UDPChannel
 from sensor_message import RobotMessage, RobotTargetMessage
+from image_grabber import ImageGrabber
 
 
+grabbing = True
 tx_udp = True
 if "interactive" in sys.argv:
     im_show = True
@@ -26,8 +28,10 @@ else:
 
 MIN_AREA = 500
 
-logging.basicConfig(level=logging.INFO,filename="/var/log/vision.log")
+logging.basicConfig(level=logging.INFO,format='%(asctime)s %(message)s',filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
+
+grabber = ImageGrabber(logger, grab_period=1, grab_limit=1300)
 
 def set_thresholds(target_color):
     global lower_h, lower_s, lower_v
@@ -142,7 +146,7 @@ def vertical_test(cnt, img, width, height):
     upper_midpoint = midpoint(upper_left, upper_right)
     bottom_midpoint = midpoint(bottom_left, bottom_right)
     upperX, upperY = upper_midpoint
-    bottomX, bottomY = bottom_midpoint
+    bottom, bottomY = bottom_midpoint
     full_midpoint = (upperX + bottomX)/2, (upperY + bottomY)/2
     midpointX, midpointY = full_midpoint
 
@@ -254,6 +258,8 @@ while (1):
             (message_from_robot.message == 'target')):
             set_thresholds(message_from_robot.color)
             logger.info("Robot changed target color to %s",message_from_robot.color)
+            logger.info("Start grabbing images NOW!")
+            grabbing = True
     except socket.timeout as e:
         logger.info("Timed out waiting for color setting: %s",e)
 
@@ -400,7 +406,9 @@ while (1):
             channel.send_to(message)
             if printer:
                 print "Tx:" + message
-            logging.info(message)
+        logging.info(message)
+        if grabbing:
+            grabber.grab(frame, message)
     # sets the message for the correct number of target (may send 2 messages) and sends
     elif 1 <= num_of_U <= 1:
         count = 0
@@ -438,7 +446,9 @@ while (1):
                     channel.send_to(message)
                     if printer:
 		        print "Tx:" + message
-                    logger.info(message)
+                logger.info(message)
+                if grabbing:
+                    grabber.grab(frame, message)
                 cv2.putText(frame, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
             count += 1
     # sets the message for too many targets and sends
@@ -453,7 +463,9 @@ while (1):
             channel.send_to(message)
             if printer:
 	        print "Tx:" + message
-            logger.info(message)
+        logger.info(message)
+        if grabbing:
+            grabber.grab(frame, message)
     time.sleep(.1)
     # displays the frame with labels
     end_time = time.time()
