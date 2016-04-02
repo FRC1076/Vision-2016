@@ -13,7 +13,7 @@ from sensor_message import RobotMessage, RobotTargetMessage
 from image_grabber import ImageGrabber
 
 
-grabbing = True
+grabbing = False
 tx_udp = True
 if "interactive" in sys.argv:
     im_show = True
