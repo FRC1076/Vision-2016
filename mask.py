@@ -57,6 +57,7 @@ while (1):
 
 	edges = cv2.Canny(mask, 100, 200)
 	#area = cv2.contourArea(edges)
+    # Test comment
 	cv2.imshow('edges', edges)
 	if 27 == cv2.waitKey(10):  #27 = escape key
 		break
