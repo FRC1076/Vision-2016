@@ -1,8 +1,12 @@
 import numpy as np
 import cv2
 
-lower_h = lower_s = lower_v = 0
-upper_h = upper_s = upper_v = 255
+lower_h = 61
+lower_s = 20
+lower_v = 0
+upper_h = 69
+upper_s = 217
+upper_v = 255
 
 
 def nothing(x):
@@ -41,9 +45,21 @@ while (1):
 	upper_hsv = np.array([upper_h,upper_s,upper_v])
 	#print "lower_hsv", lower_hsv, "upper_hsv", upper_hsv
 	mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
+
+	# sets the dilation and erosion factor
+	kernel = np.ones((5,5),np.uint8)
+	dots = np.ones((5,5),np.uint8)
+	# erodes and dilates the image
+	mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
+	mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, dots)
+	# dilates and erodes the image
+	mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+	mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 	
 	cv2.imshow('mask', mask)
+	res = cv2.bitwise_and(img, img, mask = mask)
 	
+
 	edges = cv2.Canny(mask, 100, 200)
 	#area = cv2.contourArea(edges)
 	cv2.imshow('edges', edges)
