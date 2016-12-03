@@ -25,19 +25,9 @@ cv2.setTrackbarPos('VL', 'mask', lower_v)
 cv2.setTrackbarPos('VU', 'mask', upper_v)
 
 img = cv2.imread('cube-green.jpeg', cv2.IMREAD_COLOR)
-imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-cv2.imshow('image',img)
-cv2.imshow('image-gray', imgray)
+cv2.imshow('ImageOriginal',img)
 
-ret,thresh = cv2.threshold(imgray, 127,255,0)
-contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-cv2.drawContours(img, contours, -1, (0,255,0), 3)
-cnt = contours[0] 
-
-area = cv2.contourArea(cnt)
-#print area
-cv2.imshow('image',img)
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
 while (1):
@@ -49,12 +39,11 @@ while (1):
 	upper_v = cv2.getTrackbarPos('VU','mask')
 	lower_hsv = np.array([lower_h,lower_s,lower_v])
 	upper_hsv = np.array([upper_h,upper_s,upper_v])
-	print "lower_hsv", lower_hsv, "upper_hsv", upper_hsv
+	#print "lower_hsv", lower_hsv, "upper_hsv", upper_hsv
 	mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
-
+	
 	cv2.imshow('mask', mask)
-	res = cv2.bitwise_and(img, img, mask = mask)
-
+	
 	edges = cv2.Canny(mask, 100, 200)
 	#area = cv2.contourArea(edges)
     # Test comment
