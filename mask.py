@@ -24,7 +24,7 @@ cv2.setTrackbarPos('SU', 'mask', upper_s)
 cv2.setTrackbarPos('VL', 'mask', lower_v)
 cv2.setTrackbarPos('VU', 'mask', upper_v)
 
-img = cv2.imread('cube-green.jpg', cv2.IMREAD_COLOR)
+img = cv2.imread('cube-green.jpeg', cv2.IMREAD_COLOR)
 imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 cv2.imshow('image',img)
