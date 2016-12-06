@@ -1,4 +1,5 @@
 # Code to find Cube for the WAPUR challenge and send range and heading information via UDP
+# Type this to run interactively:
 # python findcube.py 127.0.0.1 interactive
 
 from __future__ import division
@@ -14,7 +15,6 @@ import socket
 from udp_channels import UDPChannel
 from sensor_message import RobotMessage, RobotTargetMessage
 from image_grabber import ImageGrabber
-
 
 grabbing = False
 tx_udp = True
@@ -88,7 +88,7 @@ def aspect_ratio(cnt):
     #print "aspect_ratio:", avg_height, avg_width, avg_height / avg_width;
     #print cnt
     if avg_width <> 0:
-        return abs(avg_height / avg_width)
+        return abs(avg_width / avg_height)
     else:
         return 0
  
@@ -237,40 +237,23 @@ while (1):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     if im_show:
-        cv2.imshow('inRange', mask)
+        cv2.imshow('mask', mask)
 
-    # uses mask to create a color image within the range values
-    res = cv2.bitwise_and(frame, frame, mask = mask)
+    contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # creates a grayscale image of just the edges of shape
-    edges = cv2.Canny(mask, 100, 200)
-
-    # finds contours
-    imgray = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
-    ret, thresh = cv2.threshold(imgray, 0, 255, 0)
-    if im_show:
-        cv2.imshow('thresh', thresh)
-    cv2.waitKey(1)
-    contours, hierarchy  = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    # tests the contours and determines which ones are cubes
-    num_of_contours = len(contours)
-    shapes = [False]*num_of_contours
-    # fills in the boolean array of whether or not a shape is a U
-    count = 0
-    num_of_Cube = 0
+    cube_found = False         # count number of contours that match our tests for cubes
+    count = 0;              # count times through the loop below
     for contour in contours:
         count += 1
-        is_aspect_ok = (0.7 < aspect_ratio(contour) < 3)
+        is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
         is_area_ok = (2000 < cv2.contourArea(contour) < 20000)
         if (False == is_area_ok):
-            print "Fail area:", cv2.contourArea(contour), "Contour:", count + 1, " of ", len(contours)
+            print "Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours)
             continue;  # jump to bottom of for loop
         if (False == is_aspect_ok):
-            print "Fail aspect ratio:", aspect_ratio(contour), "Contour:", count + 1, " of ", len(contours)
-            continue;  # jump to bottom of for loop
-        num_of_Cube += 1
-         # transmit heading data
+           print "Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours)
+           continue;  # jump to bottom of for loop
+        cube_found = True
          # Find the heading of this cube
         heading = find_heading(contour, width, height)
         # determines the distance of this cube
@@ -283,14 +266,15 @@ while (1):
            "status" : "ok",
         }
         message = json.dumps(data)
-        # sends the message
+        # Transmit the message
         if tx_udp:
             channel.send_to(message)
             if printer:
                 print "Tx:" + message
         logger.info(message)
+        break                       # We found a good contour break out of for loop
     
-    if num_of_Cube == 0:
+    if cube_found == False:
         data = {
            "sender" : "vision",
            "message" : "range and heading",
