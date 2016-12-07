@@ -1,3 +1,7 @@
+# Code to find Cube for the WAPUR challenge and send range and heading information via UDP
+# Type this to run interactively:
+# python findcube.py 127.0.0.1 interactive
+
 from __future__ import division
 
 import numpy as np
@@ -12,7 +16,6 @@ from udp_channels import UDPChannel
 from sensor_message import RobotMessage, RobotTargetMessage
 from image_grabber import ImageGrabber
 
-
 grabbing = False
 tx_udp = True
 if "interactive" in sys.argv:
@@ -26,54 +29,33 @@ else:
     printer = False
     wait = False
 
-MIN_AREA = 500
-
 logging.basicConfig(level=logging.INFO,format='%(asctime)s %(message)s',filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
 
 grabber = ImageGrabber(logger, grab_period=1, grab_limit=1300)
 
-def set_thresholds(target_color):
-    global lower_h, lower_s, lower_v
-    global upper_h, upper_s, upper_v
-    if target_color == "red":
-        print("Setting target color to red")
-        lower_h = 60
-        upper_h = 180
-        lower_s = 0
-        upper_s = 70
-        lower_v = 110
-        upper_v = 255
-    else:
-        print("Setting target color to blue")
-        lower_h = 85
-        upper_h = 108
-        lower_s = 28
-        upper_s = 255
-        lower_v = 0
-        upper_v = 255
+lower_h = 61
+lower_s = 20
+lower_v = 0
+upper_h = 69
+upper_s = 217
+upper_v = 255
+
 
 FIELD_OF_VIEW = 65
 fps_stats = []
-
-if "red" in sys.argv:
-    set_thresholds("red")
-else:
-    set_thresholds("blue")
-
 
 # finds the distance between 2 points
 def distance_between_points(p1, p2):
     x1, y1 = p1[0]
     x2, y2 = p2[0]
     return ((x1 - x2)**2 + (y1 - y2)**2)**0.5
-
-# finds the squared distance to point
-def sq_distance_to_point(x0, y0):
+  
+def distance_to_point(x0, y0):
     def distance(pt):
         x, y = pt[0]
         dx, dy = x - x0, y - y0
-        return dx*dx + dy*dy
+        return (dx*dx + dy*dy)**0.5;
     return distance
 
 # finds the midpoint of 2 points
@@ -90,31 +72,6 @@ def area(cnt):
 def perimeter(cnt):
     return cv2.actLength(cnt, True)
 
-# tests five eighths down the center of the object is not part 
-# of the object, insuring it's a U shape
-def five_eighths_test(cnt, img, width, height):
-    # finds the diagonal extreme of the contour
-    upper_left = min(cnt, key=sq_distance_to_point(0, 0))
-    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
-    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
-    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
-
-    # finds height of the U
-    left_height = distance_between_points(upper_left, bottom_left)
-    right_height = distance_between_points(upper_right, bottom_right)
-    height = (left_height + right_height)/2
-
-    # finds the midpoint
-    upper_mid = midpoint(upper_left, upper_right)
-    # unpacks the x, y values of the midpoint
-    midX, midY = upper_mid
-
-    # actually tests each point along the five-eighths from the top line
-    testX = midX
-    testY = midY + 0.625*height
-    testpoint = testX, testY
-    return (img[midY:testY, testX] == 0).all()
-
 # tests if the area of the contour is within 2 values
 def area_test(cnt, width, height):
     #return width*height*0.005 < area(cnt) < width*height*0.02
@@ -122,55 +79,26 @@ def area_test(cnt, width, height):
 
 def aspect_ratio(cnt):
     # finds the diagonal extreme of the contour
-    upper_left = min(cnt, key=sq_distance_to_point(0, 0))
-    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
-    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
-    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
+    upper_left = min(cnt, key=distance_to_point(0, 0))
+    upper_right = min(cnt, key=distance_to_point(width, 0))
+    bottom_left = min(cnt, key=distance_to_point(0, height))
+    bottom_right = min(cnt, key=distance_to_point(width, height))
     avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1])/2
-    avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][1] - bottom_left[0][1])/2
-    #   print avg_height,avg_width,avg_height / avg_width;
+    avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][0] - bottom_left[0][0])/2
+    #print "aspect_ratio:", avg_height, avg_width, avg_height / avg_width;
+    #print cnt
     if avg_width <> 0:
-        return abs(avg_height / avg_width)
+        return abs(avg_width / avg_height)
     else:
         return 0
  
-
-def vertical_test(cnt, img, width, height):
-    # finds the diagonal extreme of the contour
-    upper_left = min(cnt, key=sq_distance_to_point(0, 0))
-    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
-    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
-    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
-
-    # finds the midpoint
-    upper_midpoint = midpoint(upper_left, upper_right)
-    bottom_midpoint = midpoint(bottom_left, bottom_right)
-    upperX, upperY = upper_midpoint
-    bottom, bottomY = bottom_midpoint
-    full_midpoint = (upperX + bottomX)/2, (upperY + bottomY)/2
-    midpointX, midpointY = full_midpoint
-
-    # test up a vertical line
-    test_pixels = []
-    count = 0
-    while count < bottomY:
-        test_pixels.append(img[count, midpointX] > 0)
-        #img[count, midpointX] = 200
-        count += 1
-
-    count = 0
-    for pixel in test_pixels:
-        if pixel:
-            count += 1
-    return count > len(test_pixels)*.95
-
-# determines the degrees of the U off from the middle
+# determines the degrees of the cube off from the middle
 def find_heading(cnt, width, height):
     # finds the diagonal extremes of the contour
-    upper_left = min(cnt, key=sq_distance_to_point(0, 0))
-    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
-    bottom_left = min(cnt, key=sq_distance_to_point(0, width))
-    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
+    upper_left = min(cnt, key=distance_to_point(0, 0))
+    upper_right = min(cnt, key=distance_to_point(width, 0))
+    bottom_left = min(cnt, key=distance_to_point(0, width))
+    bottom_right = min(cnt, key=distance_to_point(width, height))
 
     #finds the midpoint
     midpoint_upper = midpoint(upper_left, upper_right)
@@ -183,13 +111,17 @@ def find_heading(cnt, width, height):
     heading = ((FIELD_OF_VIEW/2.0) * pixel_distance)/(width/2)
     return int(heading)
 
-# determines the distance of the U from the robot in inches (NOTE!!! NOT ACCURATE)
+# determines the distance of the cube from the robot in inches
+# width is the number of pixels our image is wide
+# height is the number of pixels our image is tall
+# note the cube is 8x8x8 inches
+
 def find_distance(cnt, width, height):
     # find the diagonal extremes of the contour
-    upper_left = min(cnt, key=sq_distance_to_point(0, 0))
-    upper_right = min(cnt, key=sq_distance_to_point(width, 0))
-    bottom_left = min(cnt, key=sq_distance_to_point(0, height))
-    bottom_right = min(cnt, key=sq_distance_to_point(width, height))
+    upper_left = min(cnt, key=distance_to_point(0, 0))
+    upper_right = min(cnt, key=distance_to_point(width, 0))
+    bottom_left = min(cnt, key=distance_to_point(0, height))
+    bottom_right = min(cnt, key=distance_to_point(width, height))
 
     # finds the left and right X values
     bottom_leftX, bottom_leftY = bottom_left[0]
@@ -199,11 +131,12 @@ def find_distance(cnt, width, height):
     else:
         pixel_height = bottom_rightY - bottom_leftY
     pixel_width = abs(bottom_rightX - bottom_leftX)
-    pixel_distance = (pixel_width**2 + pixel_height**2)**0.5
-    distance = ((17.25/(pixel_distance/width))**2 - 6724)**0.5
+    #FIELD_OF_VIEW = 65
+    distance = 100
     if (distance >= 0 and distance < 9999):
         return int(distance)
     else:
+        print "Fail find_distance:", pixel_height, pixel_width, pixel_distance, width, distance
         return 9999
 
 def nothing(x):
@@ -223,15 +156,13 @@ if sliders:
     cv2.namedWindow('upper')
 
     # creates the rgb trackbars
-    switch = '0 : OFF \n1 : ON'
     cv2.createTrackbar('H','lower',0,255,nothing)
     cv2.createTrackbar('S','lower',0,255,nothing)
     cv2.createTrackbar('V','lower',0,255,nothing)
-    cv2.createTrackbar(switch, 'lower',0,1,nothing)
     cv2.createTrackbar('H','upper',0,255,nothing)
     cv2.createTrackbar('S','upper',0,255,nothing)
     cv2.createTrackbar('V','upper',0,255,nothing)
-    cv2.createTrackbar(switch, 'upper',0,1,nothing)
+
     cv2.setTrackbarPos('H', 'lower', lower_h)
     cv2.setTrackbarPos('S', 'lower', lower_s)
     cv2.setTrackbarPos('V', 'lower', lower_v)
@@ -262,13 +193,14 @@ while (1):
             grabbing = True
     except socket.timeout as e:
         logger.info("Timed out waiting for color setting: %s",e)
-
+        
     k = cv2.waitKey(10) & 0xFF
-    if k == 27:
+    if k == 27: # Exit when the escape key is hit
         break
     start_time = time.time()
     # captures each frame individually
     ret, frame = cap.read()
+    frame = cv2.imread('cube-green.jpeg')
     height, width, channels = frame.shape
 
     if im_show:
@@ -282,40 +214,11 @@ while (1):
         lower_h = cv2.getTrackbarPos('H','lower')
         lower_s = cv2.getTrackbarPos('S','lower')
         lower_v = cv2.getTrackbarPos('V','lower')
-        lower_switch = cv2.getTrackbarPos(switch,'lower')
+
         # upper rgb values
         upper_h = cv2.getTrackbarPos('H','upper')
         upper_s = cv2.getTrackbarPos('S','upper')
         upper_v = cv2.getTrackbarPos('V','upper')
-        upper_switch = cv2.getTrackbarPos(switch,'upper')
-
-        # lower hsv values
-        lower_rgb = colorsys.hsv_to_rgb(lower_h, lower_s, lower_v)
-        lower_r, lower_g, lower_b = lower_rgb
-        if lower_switch == 0:
-            lower[:] = 0
-        else:
-            lower[:] = [lower_b,lower_g,lower_r]
-        font = cv2.FONT_HERSHEY_PLAIN
-        message = 'H: ' + str(lower_h) + ', S: ' + str(lower_s) + ', V: ' + str(lower_v)
-        cv2.putText(lower, message, (100, 100), font, 1.0, (0, 255, 255), 1, False)
-        if im_show:
-            cv2.imshow('lower', lower)
-
-        # upper hsv values
-        upper_rgb = colorsys.hsv_to_rgb(upper_h, upper_s, upper_v)
-        upper_r, upper_g, upper_b = upper_rgb
-        if upper_switch == 0:
-            upper[:] = 0
-        else:
-            upper[:] = [upper_b,upper_g,upper_r]
-        font = cv2.FONT_HERSHEY_PLAIN
-        message = 'H: ' + str(upper_h) + ', S: ' + str(upper_s) + ', V: ' + str(upper_v)
-        cv2.putText(upper, message, (100, 100), font, 1.0, (0, 255, 255), 1, False)
-        if im_show:
-            cv2.imshow('upper', upper)
-        else:
-            pass
 
     # range of HSV color values
     lower_green = np.array([lower_h, lower_s, lower_v])
@@ -325,7 +228,7 @@ while (1):
     mask = cv2.inRange(hsv, lower_green, upper_green)
 
     # sets the dilation and erosion factor
-    kernel = np.ones((20,5),np.uint8)
+    kernel = np.ones((5,5),np.uint8)
     dots = np.ones((5,5),np.uint8)
     # erodes and dilates the image
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
@@ -334,149 +237,59 @@ while (1):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     if im_show:
-        cv2.imshow('inRange', mask)
+        cv2.imshow('mask', mask)
 
-    # uses mask to create a color image within the range values
-    res = cv2.bitwise_and(frame, frame, mask = mask)
+    contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # creates a grayscale image of just the edges of shape
-    edges = cv2.Canny(mask, 100, 200)
-
-    # finds contours
-    imgray = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
-    ret, thresh = cv2.threshold(imgray, 0, 255, 0)
-    #if im_show:
-    #    cv2.imshow('thresh', thresh)
-    cv2.waitKey(1)
-    contours, hierarchy  = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-
-    # tests the contours and determines which ones are U's
-    num_of_contours = len(contours)
-    shapes = [False]*num_of_contours
-    # fills in the boolean array of whether or not a shape is a U
-    count = 0
+    cube_found = False         # count number of contours that match our tests for cubes
+    count = 0;              # count times through the loop below
     for contour in contours:
-        # passes_vertical = vertical_test(contour, mask, width, height)
-        passes_area = area_test(contour, width, height)
-        if passes_area:
-            if (aspect_ratio(contour) > 10):
-                shapes[count] = True
-            else:
-                print "aspect ratio:",aspect_ratio(contour)
         count += 1
-
-    # determines the number of U's
-    num_of_U = 0
-    x_values = [0]*num_of_contours
-    for shape in shapes:
-        if shape:
-            num_of_U += 1
-
-    # saves the bottom-left X value of each U, or 10000 if not a U
-    count = 0
-    if num_of_U > 1:
-        for contour in contours:
-            coordinate = min(contour, key=sq_distance_to_point(0, height))
-            x_coor, y_coor = coordinate[0]
-            if shapes[count]:
-                x_values[count] = x_coor
-            else:
-                x_values[count] = 10000
-            count += 1
-    # sorts the x_values array in ascending numerical order
-    x_values.sort()
-    # sets the target x-value as the lowest x-value
-    if num_of_U > 0:
-        targetX = x_values[0]
-    else:
-        targetX = 0
-
-    # determines the UDP message
-    message = ''
-    # sets the message for no targets and sends
-    if num_of_U == 0:
+        is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
+        is_area_ok = (2000 < cv2.contourArea(contour) < 20000)
+        if (False == is_area_ok):
+            print "Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours)
+            continue;  # jump to bottom of for loop
+        if (False == is_aspect_ok):
+           print "Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours)
+           continue;  # jump to bottom of for loop
+        cube_found = True
+         # Find the heading of this cube
+        heading = find_heading(contour, width, height)
+        # determines the distance of this cube
+        distance = find_distance(contour, width, height)
+        data = {
+           "sender" : "vision",
+           "range" : distance,
+           "heading" : heading,
+           "message" : "range and heading",
+           "status" : "ok",
+        }
+        message = json.dumps(data)
+        # Transmit the message
+        if tx_udp:
+            channel.send_to(message)
+            if printer:
+                print "Tx:" + message
+        logger.info(message)
+        break                       # We found a good contour break out of for loop
+    
+    if cube_found == False:
         data = {
            "sender" : "vision",
            "message" : "range and heading",
            "status" : "no target",
         }
         message = json.dumps(data)
-	if tx_udp:
-            channel.send_to(message)
-            if printer:
-                print "Tx:" + message
-        logging.info(message)
-        if grabbing:
-            grabber.grab(frame, message)
-    # sets the message for the correct number of target (may send 2 messages) and sends
-    elif 1 <= num_of_U <= 1:
-        count = 0
-        for contour in contours:
-            if shapes[count]:
-                # sets the point at which the origin of the text label is placed on the image
-                label_point = min(contour, key=sq_distance_to_point(width, height))
-                labelX, labelY = label_point[0]
-                # determines the heading of this U
-                heading = find_heading(contour, width, height)
-                # determines the distance of this U
-                distance = find_distance(contour, width, height)
-                # actually sets the message based on number of U's
-                if num_of_U == 1:
-                    font = cv2.FONT_HERSHEY_PLAIN
-                    status = "ok"
-                else:
-                    font = cv2.FONT_HERSHEY_PLAIN
-                    coordinate = min(contour, key=sq_distance_to_point(0, height))
-                    x_coor, y_coor = coordinate[0]
-                    if targetX == x_coor:
-                        status = "LEFT"
-                    else:
-                        status = "RIGHT"
-                data = {
-                   "sender" : "vision",
-                   "range" : distance,
-                   "heading" : heading,
-                   "message" : "range and heading",
-                   "status" : status,
-                }
-                message = json.dumps(data)
-                # sends the message
-                if tx_udp:
-                    channel.send_to(message)
-                    if printer:
-		        print "Tx:" + message
-                logger.info(message)
-                if grabbing:
-                    grabber.grab(frame, message)
-                cv2.putText(frame, message, (labelX, labelY), font, 1.0, (255, 255, 255), 1, False)
-            count += 1
-    # sets the message for too many targets and sends
-    else:
-        data = {
-           "sender" : "vision",
-           "message" : "range and heading",
-            "status" : "too many targets",
-        }
-        message = json.dumps(data)
         if tx_udp:
             channel.send_to(message)
             if printer:
-	        print "Tx:" + message
-        logger.info(message)
-        if grabbing:
-            grabber.grab(frame, message)
+                print "Tx:" + message
+            logging.info(message)
+    if grabbing:
+        grabber.grab(frame, message)
+
     time.sleep(.1)
-    # displays the frame with labels
-    end_time = time.time()
-    time_difference = end_time - start_time
-    fps = 1/time_difference
-    fps_stats.append(fps)
-    average = str(sum(fps_stats)/len(fps_stats))
-    font = cv2.FONT_HERSHEY_PLAIN
-    cv2.putText(frame, average, (width - 100, height - 100), font, 1.0, (255, 255, 255), 1, False)
-    #if im_show:
-    #    cv2.imshow('edges', res)
     if wait:
         if not im_show:
             cv2.namedWindow('waitkey placeholder')
