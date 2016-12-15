@@ -34,11 +34,13 @@ logger = logging.getLogger(__name__)
 
 grabber = ImageGrabber(logger, grab_period=1, grab_limit=1300)
 
-lower_h = 61
-lower_s = 20
-lower_v = 0
-upper_h = 69
-upper_s = 217
+# These are the hue saturation value
+# This works for close-up
+lower_h = 54
+lower_s = 40
+lower_v = 109
+upper_h = 91
+upper_s = 255
 upper_v = 255
 
 
@@ -144,9 +146,14 @@ def nothing(x):
 
 # sets the video capture
 cap = cv2.VideoCapture(-1)
-cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320);
-cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240);
-cap.set(cv2.cv.CV_CAP_PROP_FPS, 30)
+if cv2.__version__=='3.1.0':
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320);
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240);
+    cap.set(cv2.CAP_PROP_FPS, 10)
+else:
+    cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320);
+    cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240);
+    cap.set(cv2.cv.CV_CAP_PROP_FPS, 30)
 
 if sliders:
     # creates slider windows
@@ -200,7 +207,7 @@ while (1):
     start_time = time.time()
     # captures each frame individually
     ret, frame = cap.read()
-    frame = cv2.imread('cube-green.jpeg')
+    #frame = cv2.imread('cube-green.jpeg')
     height, width, channels = frame.shape
 
     if im_show:
@@ -228,25 +235,27 @@ while (1):
     mask = cv2.inRange(hsv, lower_green, upper_green)
 
     # sets the dilation and erosion factor
-    kernel = np.ones((5,5),np.uint8)
-    dots = np.ones((5,5),np.uint8)
+    kernel = np.ones((1,1),np.uint8)
+    dots = np.ones((1,1),np.uint8)
     # erodes and dilates the image
+    if im_show:
+        cv2.imshow('mask1', mask)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, dots)
     # dilates and erodes the image
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     if im_show:
-        cv2.imshow('mask', mask)
+        cv2.imshow('mask2', mask)
 
-    contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    dontcare, contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     cube_found = False         # count number of contours that match our tests for cubes
     count = 0;              # count times through the loop below
     for contour in contours:
         count += 1
         is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
-        is_area_ok = (2000 < cv2.contourArea(contour) < 20000)
+        is_area_ok = (500 < cv2.contourArea(contour) < 20000)
         if (False == is_area_ok):
             print "Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours)
             continue;  # jump to bottom of for loop
