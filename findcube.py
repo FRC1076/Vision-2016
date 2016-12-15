@@ -79,6 +79,7 @@ def area_test(cnt, width, height):
     #return width*height*0.005 < area(cnt) < width*height*0.02
     return area(cnt) > MIN_AREA
 
+# return width / height
 def aspect_ratio(cnt):
     # finds the diagonal extreme of the contour
     upper_left = min(cnt, key=distance_to_point(0, 0))
@@ -145,7 +146,7 @@ def nothing(x):
     pass
 
 # sets the video capture
-cap = cv2.VideoCapture(-1)
+cap = cv2.VideoCapture(0)
 if cv2.__version__=='3.1.0':
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320);
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240);
@@ -248,8 +249,10 @@ while (1):
     if im_show:
         cv2.imshow('mask2', mask)
 
-    dontcare, contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
+    if cv2.__version__=='3.1.0':
+        dontcare, contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    else:
+        contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cube_found = False         # count number of contours that match our tests for cubes
     count = 0;              # count times through the loop below
     for contour in contours:
