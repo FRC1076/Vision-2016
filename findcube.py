@@ -36,12 +36,21 @@ grabber = ImageGrabber(logger, grab_period=1, grab_limit=1300)
 
 # These are the hue saturation value
 # This works for close-up
-lower_h = 54
-lower_s = 40
-lower_v = 109
-upper_h = 91
+#lower_h = 54
+#lower_s = 40
+#lower_v = 109
+#upper_h = 91
+#upper_s = 255
+#upper_v = 255
+
+lower_h = 28
+lower_s = 62
+lower_v = 123
+upper_h = 58
 upper_s = 255
 upper_v = 255
+
+# New values from Mark S., Saturday,
 
 
 FIELD_OF_VIEW = 65
@@ -138,9 +147,9 @@ def find_distance(cnt, width, height):
     print "The pixel width is :", pixel_width_cm
     dist_to_cube = (117-pixel_width_cm)/28.5
     #FIELD_OF_VIEW = 65
-    distance = 100
-    if (distance >= 0 and distance < 9999):
-        print("The distance is: "+str(distance))
+    if (dist_to_cube >= 0 and dist_to_cube < 9999):
+        print("The distance is: "+str(dist_to_cube))
+        return dist_to_cube
     else:
         print "Fail find_distance:", pixel_height, pixel_width, pixel_distance, width, distance
         return 9999
