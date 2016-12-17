@@ -136,6 +136,7 @@ def find_distance(cnt, width, height):
     pixel_width = abs(bottom_rightX - bottom_leftX)
     pixel_width_cm = 2.54*pixel_width
     print "The pixel width is :", pixel_width_cm
+    dist_to_cube = (117-pixel_width_cm)/28.5
     #FIELD_OF_VIEW = 65
     distance = 100
     if (distance >= 0 and distance < 9999):
