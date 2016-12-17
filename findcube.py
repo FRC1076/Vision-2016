@@ -134,10 +134,12 @@ def find_distance(cnt, width, height):
     else:
         pixel_height = bottom_rightY - bottom_leftY
     pixel_width = abs(bottom_rightX - bottom_leftX)
+    pixel_width_cm = 2.54*pixel_width
+    print "The pixel width is :", pixel_width_cm
     #FIELD_OF_VIEW = 65
     distance = 100
     if (distance >= 0 and distance < 9999):
-        return int(distance)
+        print("The distance is: "+str(distance))
     else:
         print "Fail find_distance:", pixel_height, pixel_width, pixel_distance, width, distance
         return 9999
@@ -208,7 +210,7 @@ while (1):
     start_time = time.time()
     # captures each frame individually
     ret, frame = cap.read()
-    #frame = cv2.imread('cube-green.jpeg')
+    # frame = cv2.imread('/home/pi/dev/Vision-2016/TestImages/cube-green8.jpeg')
     height, width, channels = frame.shape
 
     if im_show:
