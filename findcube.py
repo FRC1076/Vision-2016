@@ -12,6 +12,7 @@ import time
 import colorsys
 import json
 import socket
+import subprocess
 from udp_channels import UDPChannel
 from sensor_message import RobotMessage, RobotTargetMessage
 from image_grabber import ImageGrabber
@@ -32,20 +33,32 @@ else:
 logging.basicConfig(level=logging.INFO,format='%(asctime)s %(message)s',filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
 
-grabber = ImageGrabber(logger, grab_period=1, grab_limit=1300)
+if grabbing:
+    grabber = ImageGrabber(logger, grab_period=1, grab_limit=1300)
 
 # These are the hue saturation value
-# This works for close-up
-lower_h = 54
+# This works for close-up with exposure = 30
+lower_h = 27
 lower_s = 40
 lower_v = 109
-upper_h = 91
+upper_h = 63
 upper_s = 255
 upper_v = 255
 
-
-FIELD_OF_VIEW = 65
+FIELD_OF_VIEW = 75
+# from function fitting
+K_INCH_PIXELS = 2200
+CM_PER_INCH = 2.54
 fps_stats = []
+
+def distance_in_cm_from_pixels(pixels):
+    """
+    We measured visible pixel width from experiments
+    and fit that to the distances we measured.  We came
+    up with a magic number and apply that here to get distance
+    from the width of the 8 inch target.
+    """
+    return K_INCH_PIXELS / pixels * CM_PER_INCH
 
 # finds the distance between 2 points
 def distance_between_points(p1, p2):
@@ -134,29 +147,34 @@ def find_distance(cnt, width, height):
     else:
         pixel_height = bottom_rightY - bottom_leftY
     pixel_width = abs(bottom_rightX - bottom_leftX)
-    pixel_width_cm = 2.54*pixel_width
-    print "The pixel width is :", pixel_width_cm
-    dist_to_cube = (117-pixel_width_cm)/28.5
+    print "The pixel width is :", pixel_width
+    distance = distance_in_cm_from_pixels(pixel_width)
     #FIELD_OF_VIEW = 65
-    distance = 100
     if (distance >= 0 and distance < 9999):
         print("The distance is: "+str(distance))
+	return round(distance)
     else:
         return 9999
+
+# finds the area of a contour
+def save_config():
+    pass
 
 def nothing(x):
     pass
 
 # sets the video capture
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(-1)
 if cv2.__version__=='3.1.0':
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320);
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240);
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
     cap.set(cv2.CAP_PROP_FPS, 10)
 else:
-    cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320);
-    cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240);
+    cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320)
+    cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240)
     cap.set(cv2.cv.CV_CAP_PROP_FPS, 30)
+
+subprocess.Popen('v4l2-ctl -c exposure=30'.split())
 
 if sliders:
     # creates slider windows
@@ -204,9 +222,11 @@ while (1):
     except socket.timeout as e:
         logger.info("Timed out waiting for color setting: %s",e)
         
-    k = cv2.waitKey(10) & 0xFF
+    k = cv2.waitKey(1) & 0xFF
     if k == 27: # Exit when the escape key is hit
         break
+    if k == ord('s'):
+        save_config
     start_time = time.time()
     # captures each frame individually
     ret, frame = cap.read()
@@ -262,7 +282,7 @@ while (1):
         is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
         is_area_ok = (500 < cv2.contourArea(contour) < 20000)
         if (False == is_area_ok):
-            print "Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours)
+            # print "Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours)
             continue;  # jump to bottom of for loop
         if (False == is_aspect_ok):
            print "Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours)
@@ -283,8 +303,8 @@ while (1):
         # Transmit the message
         if tx_udp:
             channel.send_to(message)
-            if printer:
-                print "Tx:" + message
+        if printer:
+            print "Tx:" + message
         logger.info(message)
         break                       # We found a good contour break out of for loop
     
