@@ -6,6 +6,7 @@ from __future__ import division
 
 import numpy as np
 import cv2
+import os
 import sys
 import logging
 import time
@@ -16,7 +17,12 @@ from udp_channels import UDPChannel
 from sensor_message import RobotMessage, RobotTargetMessage
 from image_grabber import ImageGrabber
 
+# do not log images  (set to true if you want images logged)
 grabbing = False
+
+# log every 20th image
+grab_period = 20
+
 tx_udp = True
 if "interactive" in sys.argv:
     im_show = True
@@ -32,19 +38,59 @@ else:
 logging.basicConfig(level=logging.INFO,format='%(asctime)s %(message)s',filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
 
-grabber = ImageGrabber(logger, grab_period=1, grab_limit=1300)
+grabber = ImageGrabber(logger, grab_period=grab_period, grab_limit=1300)
 
 # These are the hue saturation value
 # This works for close-up
+exposure = 30
 lower_h = 54
 lower_s = 40
 lower_v = 109
 upper_h = 91
 upper_s = 255
 upper_v = 255
-
-
 FIELD_OF_VIEW = 65
+
+#
+# Configurations are on the /var volume where we write stuff
+#
+config_file_pathname = './findcube.cfg'
+
+#
+# If there is a configuration file, import it, use existing values
+# as default for anything missing.
+# If there is not a configuration file, populate it with the application
+# default values.
+#
+try:
+    config_fp = open(config_file_pathname, 'r')
+    config = json.load(config_fp)
+
+    lower_h = config.get('lower_hue', lower_h)
+    lower_s = config.get('lower_saturation', lower_s)
+    lower_v = config.get('lower_value', lower_v)
+    upper_h = config.get('upper_hue', upper_h)
+    upper_s = config.get('upper_saturation', upper_s)
+    upper_v = config.get('upper_value', upper_v)
+    exposure = config.get('exposure', exposure)
+    FIELD_OF_VIEW = config.get('field_of_view', FIELD_OF_VIEW)
+    
+except:
+    config = {
+        'lower_hue': lower_h,
+        'lower_saturation': lower_s,
+        'lower_value': lower_v,
+        'upper_hue': upper_h,
+        'upper_saturation': upper_s,
+        'upper_value': upper_v,
+        'exposure': exposure,
+        'field_of_view': FIELD_OF_VIEW
+    }
+    config_fp = open(config_file_pathname, 'w')
+    json.dump(config, config_fp)
+
+config_fp.close()
+
 fps_stats = []
 
 # finds the distance between 2 points
@@ -207,6 +253,21 @@ while (1):
     k = cv2.waitKey(10) & 0xFF
     if k == 27: # Exit when the escape key is hit
         break
+    if k == ord('S'):
+        config = {
+            'lower_hue': lower_h,
+            'lower_saturation': lower_s,
+            'lower_value': lower_v,
+            'upper_hue': upper_h,
+            'upper_saturation': upper_s,
+            'upper_value': upper_v,
+            'exposure': exposure,
+            'field_of_view': FIELD_OF_VIEW
+        }
+        config_fp = open(config_file_pathname, 'w')
+        json.dump(config, config_fp)
+        config_fp.close()
+
     start_time = time.time()
     # captures each frame individually
     ret, frame = cap.read()
