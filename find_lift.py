@@ -18,6 +18,8 @@ from udp_channels import UDPChannel
 from sensor_message import RobotMessage, RobotTargetMessage
 from image_grabber import ImageGrabber
 
+tape_heading = [] #DO NOT DELETE THIS! This is currently not fully implemented, but will be soon!
+
 # do not log images  (set to true if you want images logged)
 grabbing = False
 
@@ -149,8 +151,8 @@ def aspect_ratio(cnt):
     bottom_right = min(cnt, key=distance_to_point(width, height))
     avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1])/2
     avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][0] - bottom_left[0][0])/2
-    #print "aspect_ratio:", avg_height, avg_width, avg_height / avg_width;
-    #print cnt
+    #print("aspect_ratio:", avg_height, avg_width, avg_height / avg_width;)
+    #print(cnt)
     if avg_width <> 0:
         return abs(avg_width / avg_height)
     else:
@@ -195,7 +197,7 @@ def find_distance(cnt, width, height):
     else:
         pixel_height = bottom_rightY - bottom_leftY
     pixel_width = abs(bottom_rightX - bottom_leftX)
-    print "The pixel width is :", pixel_width
+    print("The pixel width is :", pixel_width)
     distance = distance_in_cm_from_pixels(pixel_width)
     #FIELD_OF_VIEW = 65
     if (distance >= 0 and distance < 9999):
@@ -225,7 +227,7 @@ else:
 try:
     subprocess.Popen('v4l2-ctl -c exposure=30'.split())
 except:
-    print 'Unable to set exposure using v4l2-ctl tool!'
+    print('Unable to set exposure using v4l2-ctl tool!')
 
 if sliders:
     # creates slider windows
@@ -346,15 +348,18 @@ while (1):
         is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
         is_area_ok = (500 < cv2.contourArea(contour) < 20000)
         if (False == is_area_ok):
-            # print "Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours)
+            # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
             continue;  # jump to bottom of for loop
         if (False == is_aspect_ok):
-           print "Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours)
+           print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
            continue;  # jump to bottom of for loop
         cube_found = True
-         # Find the heading of this cube
+         # Find the heading of this tape
         heading = find_heading(contour, width, height)
-        # determines the distance of this cube
+        tape_heading.append(heading)
+        print("The tape heading array is: ")
+        print(tape_heading)
+        # determines the distance of this tape
         distance = find_distance(contour, width, height)
         data = {
            "sender" : "vision",
@@ -368,9 +373,9 @@ while (1):
         if tx_udp:
             channel.send_to(message)
         if printer:
-            print "Tx:" + message
+            print("Tx:" + message)
         logger.info(message)
-        break                       # We found a good contour break out of for loop
+        #break                       # We found a good contour break out of for loop
     
     if cube_found == False:
         data = {
@@ -382,7 +387,7 @@ while (1):
         if tx_udp:
             channel.send_to(message)
             if printer:
-                print "Tx:" + message
+                print("Tx:" + message)
             logging.info(message)
     if grabbing:
         grabber.grab(frame, message)
@@ -393,4 +398,5 @@ while (1):
         k = cv2.waitKey(0)
         if k == 27:         # wait for ESC key to exit
             cv2.destroyAllWindows()
+            print(tape_heading)
             break
