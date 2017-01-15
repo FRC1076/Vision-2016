@@ -32,7 +32,6 @@ if __name__ == '__main__' :
     ref_contour = ref_contour(image1)
     #Get the reference contours from the spring image
     input_contours = get_contours(image2)
-
     closest_contour = input_contours[0]
     min_dist = sys.maxint
     #Finding the closest contour
