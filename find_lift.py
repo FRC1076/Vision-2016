@@ -104,7 +104,7 @@ def distance_in_cm_from_pixels(pixels):
     We measured visible pixel width from experiments
     and fit that to the distances we measured.  We came
     up with a magic number and apply that here to get distance
-    from the width of the 8 inch target.
+    from the width of the 8 inch tatrget.
     """
     return K_INCH_PIXELS / pixels * CM_PER_INCH
 
@@ -148,6 +148,7 @@ def aspect_ratio(cnt):
     bottom_left = min(cnt, key=distance_to_point(0, height))
     bottom_right = min(cnt, key=distance_to_point(width, height))
     avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1])/2
+    print(avg_height)
     avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][0] - bottom_left[0][0])/2
     #print("aspect_ratio:", avg_height, avg_width, avg_height / avg_width;)
     #print(cnt)
@@ -180,20 +181,23 @@ def find_heading(cnt, width, height):
 # height is the number of pixels our image is tall
 # note the cube is 8x8x8 inches
 
-def find_distance(cnt, width, height):
+
+def find_distance(contour, width, height):
+    print(contour)
     # find the diagonal extremes of the contour
-    upper_left = min(cnt, key=distance_to_point(0, 0))
-    upper_right = min(cnt, key=distance_to_point(width, 0))
-    bottom_left = min(cnt, key=distance_to_point(0, height))
-    bottom_right = min(cnt, key=distance_to_point(width, height))
+    upper_left = min(contour, key=distance_to_point(0, 0))
+    upper_right = min(contour, key=distance_to_point(width, 0))
+    bottom_left = min(contour, key=distance_to_point(0, height))
+    bottom_right = min(contour, key=distance_to_point(width, height))
 
     # finds the left and right X values
     bottom_leftX, bottom_leftY = bottom_left[0]
     bottom_rightX, bottom_rightY = bottom_right[0]
     if bottom_leftY > bottom_rightY:
-        pixel_height = bottom_leftY - bottom_rightY
+        pixel_height = bottom_leftY - upper_left[0][1]
     else:
-        pixel_height = bottom_rightY - bottom_leftY
+        pixel_height = bottom_rightY - upper_left[0][1]
+    print("The pixel height is: " + str(pixel_height))
     pixel_width = abs(bottom_rightX - bottom_leftX)
     print("The pixel width is :", pixel_width)
     distance = distance_in_cm_from_pixels(pixel_width)
