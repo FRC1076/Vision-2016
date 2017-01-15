@@ -13,7 +13,7 @@ class ImageGrabber:
         
         Usage:
 
-        ig = ImageGrabber("Images", logger, grab_period=5, grab_limit=50)
+        ig = ImageGrabber(logger, grab_period=5, grab_limit=50)
 
         while 1:
             ret, frame = cap.read()    # get image, for example
