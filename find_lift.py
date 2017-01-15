@@ -137,7 +137,7 @@ def perimeter(cnt):
 
 # tests if the area of the contour is within 2 values
 def area_test(cnt, width, height):
-    #return width*height*0.005 < area(cnt) < width*height*0.02
+    #return width*height*0.005 < arfea(cnt) < width*height*0.02
     return area(cnt) > MIN_AREA
 
 # return width / height
@@ -173,7 +173,7 @@ def find_heading(cnt, width, height):
     midX, midY = mid
     pixel_distance = midX - width/2
     heading = ((FIELD_OF_VIEW/2.0) * pixel_distance)/(width/2)
-    return int(heading)
+    return heading
 
 # determines the distance of the cube from the robot in inches
 # width is the number of pixels our image is wide
