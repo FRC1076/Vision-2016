@@ -18,8 +18,6 @@ from udp_channels import UDPChannel
 from sensor_message import RobotMessage, RobotTargetMessage
 from image_grabber import ImageGrabber
 
-tape_heading = [] #DO NOT DELETE THIS! This is currently not fully implemented, but will be soon!
-
 # do not log images  (set to true if you want images logged)
 grabbing = False
 
@@ -342,7 +340,10 @@ while (1):
     else:
         contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cube_found = False         # count number of contours that match our tests for cubes
-    count = 0;              # count times through the loop below
+
+    count = 0             # count times through the loop below
+    tape_heading = []
+    tape_distance = []
     for contour in contours:
         count += 1
         is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
@@ -353,20 +354,22 @@ while (1):
         if (False == is_aspect_ok):
            print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
            continue;  # jump to bottom of for loop
-        cube_found = True
          # Find the heading of this tape
         heading = find_heading(contour, width, height)
         tape_heading.append(heading)
-        print("The tape heading array is: ")
-        print(tape_heading)
+        print(heading)
+        #print("The tape heading array is: ")
+        #print(tape_heading)
         # determines the distance of this tape
         distance = find_distance(contour, width, height)
+        tape_distance.append(distance)
+    if(len(tape_heading) == 2):
         data = {
-           "sender" : "vision",
-           "range" : distance,
-           "heading" : heading,
-           "message" : "range and heading",
-           "status" : "ok",
+        "sender" : "vision",
+        "range" : distance,
+        "heading" : (tape_heading[0]+tape_heading[1])/2,
+        "message" : (tape_distance[0]+tape_distance[1])/2,
+        "status" : "ok",
         }
         message = json.dumps(data)
         # Transmit the message
@@ -375,9 +378,7 @@ while (1):
         if printer:
             print("Tx:" + message)
         logger.info(message)
-        #break                       # We found a good contour break out of for loop
-    
-    if cube_found == False:
+    else:
         data = {
            "sender" : "vision",
            "message" : "range and heading",
