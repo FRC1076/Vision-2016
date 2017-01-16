@@ -15,7 +15,7 @@ import json
 import socket
 import subprocess
 from udp_channels import UDPChannel
-from sensor_message import RobotMessage, RobotTargetMessage
+from sensor_message import RobotMessage
 from image_grabber import ImageGrabber
 
 # do not log images  (set to true if you want images logged)
@@ -95,9 +95,8 @@ except:
 config_fp.close()
 
 # from function fitting
-K_INCH_PIXELS = 2200
+K_INCH_PIXELS = 1300
 CM_PER_INCH = 2.54
-fps_stats = []
 
 def distance_in_cm_from_pixels(pixels):
     """
@@ -107,12 +106,6 @@ def distance_in_cm_from_pixels(pixels):
     from the width of the 8 inch tatrget.
     """
     return K_INCH_PIXELS / pixels * CM_PER_INCH
-
-# finds the distance between 2 points
-def distance_between_points(p1, p2):
-    x1, y1 = p1[0]
-    x2, y2 = p2[0]
-    return ((x1 - x2)**2 + (y1 - y2)**2)**0.5
   
 def distance_to_point(x0, y0):
     def distance(pt):
@@ -131,15 +124,6 @@ def midpoint(p1, p2):
 def area(cnt):
     return cv2.contourArea(cnt)
 
-# finds the perimeter of a contour
-def perimeter(cnt):
-    return cv2.actLength(cnt, True)
-
-# tests if the area of the contour is within 2 values
-def area_test(cnt, width, height):
-    #return width*height*0.005 < arfea(cnt) < width*height*0.02
-    return area(cnt) > MIN_AREA
-
 # return width / height
 def aspect_ratio(cnt):
     # finds the diagonal extreme of the contour
@@ -148,7 +132,6 @@ def aspect_ratio(cnt):
     bottom_left = min(cnt, key=distance_to_point(0, height))
     bottom_right = min(cnt, key=distance_to_point(width, height))
     avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1])/2
-    print(avg_height)
     avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][0] - bottom_left[0][0])/2
     #print("aspect_ratio:", avg_height, avg_width, avg_height / avg_width;)
     #print(cnt)
@@ -174,16 +157,15 @@ def find_heading(cnt, width, height):
     midX, midY = mid
     pixel_distance = midX - width/2
     heading = ((FIELD_OF_VIEW/2.0) * pixel_distance)/(width/2)
-    return heading
+    return int(heading)
 
-# determines the distance of the cube from the robot in inches
+# determines the distance of the tape from the robot in inches
 # width is the number of pixels our image is wide
 # height is the number of pixels our image is tall
-# note the cube is 8x8x8 inches
-
+# note the tape is 5 inches tall
 
 def find_distance(contour, width, height):
-    print(contour)
+    # print(contour)
     # find the diagonal extremes of the contour
     upper_left = min(contour, key=distance_to_point(0, 0))
     upper_right = min(contour, key=distance_to_point(width, 0))
@@ -197,17 +179,15 @@ def find_distance(contour, width, height):
         pixel_height = bottom_leftY - upper_left[0][1]
     else:
         pixel_height = bottom_rightY - upper_left[0][1]
-    print("The pixel height is: " + str(pixel_height))
+    # print("The pixel height is: " + str(pixel_height))
     pixel_width = abs(bottom_rightX - bottom_leftX)
-    print("The pixel width is :", pixel_width)
-    distance = distance_in_cm_from_pixels(pixel_width)
+    # print("The pixel width is:", pixel_width)
+    distance = distance_in_cm_from_pixels(pixel_height)
     #FIELD_OF_VIEW = 65
     if (distance >= 0 and distance < 9999):
-        print("The distance is: "+str(distance))
-	return round(distance)
+        return round(distance)
     else:
         return 9999
-
 
 def nothing(x):
     pass
@@ -297,8 +277,8 @@ while (1):
 
     start_time = time.time()
     # captures each frame individually
-    #ret, frame = cap.read()
-    frame = cv2.imread('/Users/csmonk/Downloads/gearlift_2ft.jpeg')
+    ret, frame = cap.read()
+    #frame = cv2.imread('D:\Proj\Vision-2016\TestImages\gearlift_2ft.jpeg')
     height, width, channels = frame.shape
 
     if im_show:
@@ -327,17 +307,17 @@ while (1):
 
     # sets the dilation and erosion factor
     kernel = np.ones((2,2),np.uint8)
-    dots = np.ones((2,2),np.uint8)
+    dots = np.ones((3,3),np.uint8)
     # erodes and dilates the image
     if im_show:
-        cv2.imshow('mask1', mask)
+        cv2.imshow('After cv2.inRange', mask)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, dots)
     # dilates and erodes the image
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     if im_show:
-        cv2.imshow('mask2', mask)
+        cv2.imshow('After cv2.morphologyEx', mask)
 
     if cv2.__version__=='3.1.0':
         dontcare, contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -351,7 +331,7 @@ while (1):
     for contour in contours:
         count += 1
         is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
-        is_area_ok = (500 < cv2.contourArea(contour) < 20000)
+        is_area_ok = (100 < cv2.contourArea(contour) < 20000)
         if (False == is_area_ok):
             # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
             continue;  # jump to bottom of for loop
@@ -361,9 +341,6 @@ while (1):
          # Find the heading of this tape
         heading = find_heading(contour, width, height)
         tape_heading.append(heading)
-        print(heading)
-        #print("The tape heading array is: ")
-        #print(tape_heading)
         # determines the distance of this tape
         distance = find_distance(contour, width, height)
         tape_distance.append(distance)
