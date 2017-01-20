@@ -6,11 +6,9 @@ from __future__ import division
 
 import numpy as np
 import cv2
-import os
 import sys
 import logging
 import time
-import colorsys
 import json
 import socket
 import subprocess
@@ -18,7 +16,96 @@ from udp_channels import UDPChannel
 from sensor_message import RobotMessage
 from image_grabber import ImageGrabber
 
-# do not log images  (set to true if you want images logged)
+class ObjectTracker(object):
+    def __init__(self):
+        # Create camera capture (0 means capture frame from cam)
+        self.cap = cv2.VideoCapture(0)
+        # Capture the frame
+        ret, self.frame = self.cap.read()
+        # Shrink frame
+        self.scaling_factor = 0.5
+        self.frame = cv2.resize(self.frame, None, fx=self.scaling_factor, fy=self.scaling_factor, interpolation=cv2.INTER_AREA)
+        cv2.namedWindow("Object Tracking")
+        cv2.setMouseCallback("Object Tracking", self.mouse_event)
+
+        self.selection = None
+        self.drag_start = None
+        self.tracking_state = 0
+
+    # Track mouse events
+    def mouse_event(self, event, x, y, flags, param):
+        x, y = np.int16([x,y])
+        # Detecting mouse press
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.drag_start = (x, y)
+            self.tracking_state = 0
+        if self.drag_start:
+            if flags & cv2.EVENT_FLAG_LBUTTON:
+                h,w = self.frame.shape[:2]
+                xo, yo = self.drag_start
+                x0, y0 = np.maximum(0, np.minimum([xo, yo], [x,y]))
+                x1, y1 = np.minimum([w, h], np.maximum([xo, yo], [x, y]))
+                self.selection = None
+
+                if x1-x0 > 0 and y1-y0 > 0:
+                    self.selection = (x0, y0, x1, y1)
+            else:
+                self.drag_start = None
+                if self.selection is not None:
+                    self.tracking_state = 1
+
+        # Start tracking what was clicked
+    def start_tracking(self):
+        # Go until escape is pressed
+        while True:
+            # Get frame
+            ret, self.frame = self.cap.read()
+            # Scale frame
+            self.frame = cv2.resize(self.frame, None, fx=self.scaling_factor, fy=self.scaling_factor, interpolation=cv2.INTER_AREA)
+            vis = self.frame.copy()
+            # Convert to HSV
+            hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
+            #Create mask
+            mask = cv2.inRange(hsv, np.array((0., 60., 32.)), np.array((180., 255., 255.)))
+
+            if self.selection:
+                x0, y0, x1, y1 = self.selection
+                self.track_window = (x0, y0, x1-x0, y1-y0)
+                hsv_roi = hsv[y0:y1, x0:x1]
+                mask_roi = mask[y0:y1, x0, x1]
+                #Find histogram
+                hist = cv2.calcHist( [hsv_roi], [0], mask_roi, [16], [0, 180] )
+                #Normalize histogram
+                cv2.normalize(hist, hist, 0, 255, cv2.NORM_MINMAX)
+                self.hist = hist.reshape(-1)
+
+                vis_roi = vis[y0:y1, x0:x1]
+                cv2.bitwise_not(vis_roi, vis_roi)
+                vis[mask == 0] = 0
+            if self.tracking_state == 1:
+                self.selection = None
+                #Compute back projection of histogram
+                prob = cv2.calcBackProject([hsv], [0], self.hist, [0, 180], 1)
+
+                prob &= mask
+                term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
+
+                #Execute CAMShift on prob
+                track_box, self.track_window = cv2.CamShift(prob, self.track_window, term_crit)
+
+                #Draw around object
+                cv2.ellipse(vis, track_box, (0,255,0), 2)
+            cv2.imshow("Object Tracking", vis)
+
+            c = cv2.waitKey(5)
+            if c == 27:
+                break
+        cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    ObjectTracker().start_tracking()
+
+# do not log images (set to true if you want images logged)
 grabbing = False
 
 # log every 20th image
@@ -133,9 +220,9 @@ def aspect_ratio(cnt):
     bottom_right = min(cnt, key=distance_to_point(width, height))
     avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1])/2
     avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][0] - bottom_left[0][0])/2
-    #print("aspect_ratio:", avg_height, avg_width, avg_height / avg_width;)
-    #print(cnt)
-    if avg_width <> 0:
+    # print("aspect_ratio:", avg_height, avg_width, avg_height / avg_width;)
+    # print(cnt)
+    if avg_width != 0:
         return abs(avg_width / avg_height)
     else:
         return 0
@@ -148,14 +235,14 @@ def find_heading(cnt, width, height):
     bottom_left = min(cnt, key=distance_to_point(0, width))
     bottom_right = min(cnt, key=distance_to_point(width, height))
 
-    #finds the midpoint
+    # finds the midpoint
     midpoint_upper = midpoint(upper_left, upper_right)
     midpoint_bottom = midpoint(bottom_left, bottom_right)
-    upX, upY = midpoint_upper
-    botX, botY = midpoint_bottom
-    mid = (upX + botX)/2, (upY + botY)/2
-    midX, midY = mid
-    pixel_distance = midX - width/2
+    up_x, up_y = midpoint_upper
+    bot_x, bot_y = midpoint_bottom
+    mid = (up_x + bot_x)/2, (up_y + bot_y)/2
+    mid_x, mid_y = mid
+    pixel_distance = mid_x - width/2
     heading = ((FIELD_OF_VIEW/2.0) * pixel_distance)/(width/2)
     return int(heading)
 
@@ -173,18 +260,18 @@ def find_distance(contour, width, height):
     bottom_right = min(contour, key=distance_to_point(width, height))
 
     # finds the left and right X values
-    bottom_leftX, bottom_leftY = bottom_left[0]
-    bottom_rightX, bottom_rightY = bottom_right[0]
-    if bottom_leftY > bottom_rightY:
-        pixel_height = bottom_leftY - upper_left[0][1]
+    bottom_left_x, bottom_left_y = bottom_left[0]
+    bottom_right_x, bottom_right_y = bottom_right[0]
+    if bottom_left_y > bottom_right_y:
+        pixel_height = bottom_left_y - upper_left[0][1]
     else:
-        pixel_height = bottom_rightY - upper_left[0][1]
+        pixel_height = bottom_right_y - upper_left[0][1]
     # print("The pixel height is: " + str(pixel_height))
-    pixel_width = abs(bottom_rightX - bottom_leftX)
+    pixel_width = abs(bottom_right_x - bottom_left_x)
     # print("The pixel width is:", pixel_width)
     distance = distance_in_cm_from_pixels(pixel_height)
     #FIELD_OF_VIEW = 65
-    if (distance >= 0 and distance < 9999):
+    if distance >= 0 and distance < 9999:
         return round(distance)
     else:
         return 9999
@@ -332,19 +419,19 @@ while (1):
         count += 1
         is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
         is_area_ok = (100 < cv2.contourArea(contour) < 20000)
-        if (False == is_area_ok):
+        if not is_area_ok:
             # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
             continue;  # jump to bottom of for loop
-        if (False == is_aspect_ok):
+        if not is_aspect_ok:
            print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
            continue;  # jump to bottom of for loop
-         # Find the heading of this tape
+        # Find the heading of this tape
         heading = find_heading(contour, width, height)
         tape_heading.append(heading)
         # determines the distance of this tape
         distance = find_distance(contour, width, height)
         tape_distance.append(distance)
-    if(len(tape_heading) == 2):
+    if len(tape_heading) == 2:
         data = {
         "sender" : "vision",
         "range" : distance,
