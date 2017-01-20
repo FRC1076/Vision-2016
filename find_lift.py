@@ -1,6 +1,6 @@
 # Code to find Cube for the WAPUR challenge and send range and heading information via UDP
 # Type this to run interactively:
-# python findcube.py 127.0.0.1 interactive
+# python find_lift.py 127.0.0.1 interactive
 
 from __future__ import division
 
@@ -24,7 +24,8 @@ class ObjectTracker(object):
         ret, self.frame = self.cap.read()
         # Shrink frame
         self.scaling_factor = 0.5
-        self.frame = cv2.resize(self.frame, None, fx=self.scaling_factor, fy=self.scaling_factor, interpolation=cv2.INTER_AREA)
+        self.frame = cv2.resize(self.frame, None, fx=self.scaling_factor,
+                                fy=self.scaling_factor, interpolation=cv2.INTER_AREA)
         cv2.namedWindow("Object Tracking")
         cv2.setMouseCallback("Object Tracking", self.mouse_event)
 
@@ -65,17 +66,17 @@ class ObjectTracker(object):
             vis = self.frame.copy()
             # Convert to HSV
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
-            #Create mask
+            # Create mask
             mask = cv2.inRange(hsv, np.array((0., 60., 32.)), np.array((180., 255., 255.)))
 
             if self.selection:
                 x0, y0, x1, y1 = self.selection
                 self.track_window = (x0, y0, x1-x0, y1-y0)
                 hsv_roi = hsv[y0:y1, x0:x1]
-                mask_roi = mask[y0:y1, x0, x1]
-                #Find histogram
+                mask_roi = mask[y0:y1, x0:x1]
+                # Find histogram
                 hist = cv2.calcHist( [hsv_roi], [0], mask_roi, [16], [0, 180] )
-                #Normalize histogram
+                # Normalize histogram
                 cv2.normalize(hist, hist, 0, 255, cv2.NORM_MINMAX)
                 self.hist = hist.reshape(-1)
 
@@ -84,17 +85,17 @@ class ObjectTracker(object):
                 vis[mask == 0] = 0
             if self.tracking_state == 1:
                 self.selection = None
-                #Compute back projection of histogram
+                # Compute back projection of histogram
                 prob = cv2.calcBackProject([hsv], [0], self.hist, [0, 180], 1)
 
                 prob &= mask
                 term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
 
-                #Execute CAMShift on prob
+                # Execute CAMShift on prob
                 track_box, self.track_window = cv2.CamShift(prob, self.track_window, term_crit)
 
-                #Draw around object
-                cv2.ellipse(vis, track_box, (0,255,0), 2)
+                # Draw around object
+                cv2.ellipse(vis, track_box, (0, 255, 0), 2)
             cv2.imshow("Object Tracking", vis)
 
             c = cv2.waitKey(5)
@@ -365,7 +366,7 @@ while (1):
     start_time = time.time()
     # captures each frame individually
     ret, frame = cap.read()
-    #frame = cv2.imread('D:\Proj\Vision-2016\TestImages\gearlift_2ft.jpeg')
+    # frame = cv2.imread('D:\Proj\Vision-2016\TestImages\gearlift_2ft.jpeg')
     height, width, channels = frame.shape
 
     if im_show:
