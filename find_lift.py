@@ -92,13 +92,15 @@ class ObjectTracker(object):
 
                 prob &= mask
                 term_crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
-
+                camshifterror = False
                 # Execute CAMShift on prob
-                if cv2.meanShift(prob, self.track_window, term_crit) >= 0:
+                try:
                     track_box, self.track_window = cv2.CamShift(prob, self.track_window, term_crit)
-
+                except:
+                    camshifterror = True
                 # Draw around object
-                cv2.ellipse(vis, track_box, (0, 255, 0), 2)
+                if not camshifterror:
+                    cv2.ellipse(vis, track_box, (0, 255, 0), 2)
             cv2.imshow("Object Tracking", vis)
 
             c = cv2.waitKey(5)
@@ -334,6 +336,7 @@ if sliders:
     cv2.setTrackbarPos('S', 'upper', upper_s)
     cv2.setTrackbarPos('V', 'upper', upper_v)
 
+
 # sets up UDP sender
 if len(sys.argv) > 1:
     ip = sys.argv[1]
@@ -360,6 +363,8 @@ while 1:
     k = cv2.waitKey(5) & 0xFF
     if k == 27:  # Exit when the escape key is hit
         break
+    if k == ord('p'):
+        printer = not printer
     if k == ord('s'):
         config = {
             'lower_hue': lower_h,
@@ -466,6 +471,7 @@ while 1:
             "status": "no target",
         }
         message = json.dumps(data)
+
         if tx_udp:
             channel.send_to(message)
             if printer:
