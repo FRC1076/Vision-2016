@@ -16,6 +16,7 @@ from udp_channels import UDPChannel
 from sensor_message import RobotMessage
 from image_grabber import ImageGrabber
 
+
 class ObjectTracker(object):
     def __init__(self):
         # Create camera capture (0 means capture frame from cam)
@@ -35,34 +36,35 @@ class ObjectTracker(object):
 
     # Track mouse events
     def mouse_event(self, event, x, y, flags, param):
-        x, y = np.int16([x,y])
+        x, y = np.int16([x, y])
         # Detecting mouse press
         if event == cv2.EVENT_LBUTTONDOWN:
             self.drag_start = (x, y)
             self.tracking_state = 0
         if self.drag_start:
             if flags & cv2.EVENT_FLAG_LBUTTON:
-                h,w = self.frame.shape[:2]
+                h, w = self.frame.shape[:2]
                 xo, yo = self.drag_start
-                x0, y0 = np.maximum(0, np.minimum([xo, yo], [x,y]))
+                x0, y0 = np.maximum(0, np.minimum([xo, yo], [x, y]))
                 x1, y1 = np.minimum([w, h], np.maximum([xo, yo], [x, y]))
                 self.selection = None
 
-                if x1-x0 > 0 and y1-y0 > 0:
+                if x1 - x0 > 0 and y1 - y0 > 0:
                     self.selection = (x0, y0, x1, y1)
             else:
                 self.drag_start = None
                 if self.selection is not None:
                     self.tracking_state = 1
 
-        # Start tracking what was clicked
+    # Start tracking what was clicked
     def start_tracking(self):
         # Go until escape is pressed
         while True:
             # Get frame
             ret, self.frame = self.cap.read()
             # Scale frame
-            self.frame = cv2.resize(self.frame, None, fx=self.scaling_factor, fy=self.scaling_factor, interpolation=cv2.INTER_AREA)
+            self.frame = cv2.resize(self.frame, None, fx=self.scaling_factor, fy=self.scaling_factor,
+                                    interpolation=cv2.INTER_AREA)
             vis = self.frame.copy()
             # Convert to HSV
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
@@ -71,11 +73,11 @@ class ObjectTracker(object):
 
             if self.selection:
                 x0, y0, x1, y1 = self.selection
-                self.track_window = (x0, y0, x1-x0, y1-y0)
+                self.track_window = (x0, y0, x1 - x0, y1 - y0)
                 hsv_roi = hsv[y0:y1, x0:x1]
                 mask_roi = mask[y0:y1, x0:x1]
                 # Find histogram
-                hist = cv2.calcHist( [hsv_roi], [0], mask_roi, [16], [0, 180] )
+                hist = cv2.calcHist([hsv_roi], [0], mask_roi, [16], [0, 180])
                 # Normalize histogram
                 cv2.normalize(hist, hist, 0, 255, cv2.NORM_MINMAX)
                 self.hist = hist.reshape(-1)
@@ -89,10 +91,11 @@ class ObjectTracker(object):
                 prob = cv2.calcBackProject([hsv], [0], self.hist, [0, 180], 1)
 
                 prob &= mask
-                term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
+                term_crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
 
                 # Execute CAMShift on prob
-                track_box, self.track_window = cv2.CamShift(prob, self.track_window, term_crit)
+                if cv2.meanShift(prob, self.track_window, term_crit) >= 0:
+                    track_box, self.track_window = cv2.CamShift(prob, self.track_window, term_crit)
 
                 # Draw around object
                 cv2.ellipse(vis, track_box, (0, 255, 0), 2)
@@ -103,8 +106,9 @@ class ObjectTracker(object):
                 break
         cv2.destroyAllWindows()
 
-if __name__ == '__main__':
-    ObjectTracker().start_tracking()
+
+if (sys.argv[3] == 'objecttracking') and (__name__ == '__main__'):
+        ObjectTracker().start_tracking()
 
 # do not log images (set to true if you want images logged)
 grabbing = False
@@ -124,12 +128,11 @@ else:
     printer = False
     wait = False
 
-logging.basicConfig(level=logging.INFO,format='%(asctime)s %(message)s',filename="/var/log/vision.log")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
 
 if grabbing:
     grabber = ImageGrabber(logger, grab_period=grab_period, grab_limit=1300)
-
 
 # These are the hue saturation value
 # This works for close-up
@@ -165,7 +168,7 @@ try:
     upper_v = config.get('upper_value', upper_v)
     exposure = config.get('exposure', exposure)
     FIELD_OF_VIEW = config.get('field_of_view', FIELD_OF_VIEW)
-    
+
 except:
     config = {
         'lower_hue': lower_h,
@@ -186,31 +189,37 @@ config_fp.close()
 K_INCH_PIXELS = 1300
 CM_PER_INCH = 2.54
 
+
 def distance_in_cm_from_pixels(pixels):
     """
     We measured visible pixel width from experiments
     and fit that to the distances we measured.  We came
     up with a magic number and apply that here to get distance
-    from the width of the 8 inch tatrget.
+    from the width of the 8 inch target.
     """
     return K_INCH_PIXELS / pixels * CM_PER_INCH
-  
+
+
 def distance_to_point(x0, y0):
     def distance(pt):
         x, y = pt[0]
         dx, dy = x - x0, y - y0
-        return (dx*dx + dy*dy)**0.5;
+        return (dx * dx + dy * dy) ** 0.5;
+
     return distance
+
 
 # finds the midpoint of 2 points
 def midpoint(p1, p2):
     x1, y1 = p1[0]
     x2, y2 = p2[0]
-    return (x1 + x2)/2, (y1 + y2)/2
+    return (x1 + x2) / 2, (y1 + y2) / 2
+
 
 # finds the area of a contour
 def area(cnt):
     return cv2.contourArea(cnt)
+
 
 # return width / height
 def aspect_ratio(cnt):
@@ -219,15 +228,16 @@ def aspect_ratio(cnt):
     upper_right = min(cnt, key=distance_to_point(width, 0))
     bottom_left = min(cnt, key=distance_to_point(0, height))
     bottom_right = min(cnt, key=distance_to_point(width, height))
-    avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1])/2
-    avg_width  = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][0] - bottom_left[0][0])/2
+    avg_height = (bottom_left[0][1] - upper_left[0][1] + bottom_right[0][1] - upper_right[0][1]) / 2
+    avg_width = (upper_right[0][0] - upper_left[0][0] + bottom_right[0][0] - bottom_left[0][0]) / 2
     # print("aspect_ratio:", avg_height, avg_width, avg_height / avg_width;)
     # print(cnt)
     if avg_width != 0:
         return abs(avg_width / avg_height)
     else:
         return 0
- 
+
+
 # determines the degrees of the cube off from the middle
 def find_heading(cnt, width, height):
     # finds the diagonal extremes of the contour
@@ -241,11 +251,12 @@ def find_heading(cnt, width, height):
     midpoint_bottom = midpoint(bottom_left, bottom_right)
     up_x, up_y = midpoint_upper
     bot_x, bot_y = midpoint_bottom
-    mid = (up_x + bot_x)/2, (up_y + bot_y)/2
+    mid = (up_x + bot_x) / 2, (up_y + bot_y) / 2
     mid_x, mid_y = mid
-    pixel_distance = mid_x - width/2
-    heading = ((FIELD_OF_VIEW/2.0) * pixel_distance)/(width/2)
+    pixel_distance = mid_x - width / 2
+    heading = ((FIELD_OF_VIEW / 2.0) * pixel_distance) / (width / 2)
     return int(heading)
+
 
 # determines the distance of the tape from the robot in inches
 # width is the number of pixels our image is wide
@@ -271,18 +282,20 @@ def find_distance(contour, width, height):
     pixel_width = abs(bottom_right_x - bottom_left_x)
     # print("The pixel width is:", pixel_width)
     distance = distance_in_cm_from_pixels(pixel_height)
-    #FIELD_OF_VIEW = 65
+    # FIELD_OF_VIEW = 65
     if distance >= 0 and distance < 9999:
         return round(distance)
     else:
         return 9999
 
+
 def nothing(x):
     pass
 
+
 # sets the video capture
 cap = cv2.VideoCapture(-1)
-if cv2.__version__=='3.1.0':
+if cv2.__version__ == '3.1.0':
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
     cap.set(cv2.CAP_PROP_FPS, 10)
@@ -301,18 +314,18 @@ except:
 
 if sliders:
     # creates slider windows
-    lower = np.zeros((300,512,3), np.uint8)
+    lower = np.zeros((300, 512, 3), np.uint8)
     cv2.namedWindow('lower')
-    upper = np.zeros((300,512,3), np.uint8)
+    upper = np.zeros((300, 512, 3), np.uint8)
     cv2.namedWindow('upper')
 
     # creates the rgb trackbars
-    cv2.createTrackbar('H','lower',0,255,nothing)
-    cv2.createTrackbar('S','lower',0,255,nothing)
-    cv2.createTrackbar('V','lower',0,255,nothing)
-    cv2.createTrackbar('H','upper',0,255,nothing)
-    cv2.createTrackbar('S','upper',0,255,nothing)
-    cv2.createTrackbar('V','upper',0,255,nothing)
+    cv2.createTrackbar('H', 'lower', 0, 255, nothing)
+    cv2.createTrackbar('S', 'lower', 0, 255, nothing)
+    cv2.createTrackbar('V', 'lower', 0, 255, nothing)
+    cv2.createTrackbar('H', 'upper', 0, 255, nothing)
+    cv2.createTrackbar('S', 'upper', 0, 255, nothing)
+    cv2.createTrackbar('V', 'upper', 0, 255, nothing)
 
     cv2.setTrackbarPos('H', 'lower', lower_h)
     cv2.setTrackbarPos('S', 'lower', lower_s)
@@ -323,30 +336,29 @@ if sliders:
 
 # sets up UDP sender
 if len(sys.argv) > 1:
-   ip = sys.argv[1]
+    ip = sys.argv[1]
 else:
-   ip = '10.10.76.2'
-
+    ip = '10.10.76.2'
 
 channel = UDPChannel(remote_ip=ip, remote_port=5880,
                      local_ip='0.0.0.0', local_port=5888, timeout_in_seconds=0.001)
 
-while (1):
+while 1:
     try:
         robot_data, robot_address = channel.receive_from()
-        print("YIKES!",robot_data)
+        print("YIKES!", robot_data)
         message_from_robot = RobotMessage(robot_data)
         if ((message_from_robot.sender == 'robot') and
-            (message_from_robot.message == 'target')):
+                (message_from_robot.message == 'target')):
             set_thresholds(message_from_robot.color)
-            logger.info("Robot changed target color to %s",message_from_robot.color)
+            logger.info("Robot changed target color to %s", message_from_robot.color)
             logger.info("Start grabbing images NOW!")
             grabbing = True
     except socket.timeout as e:
-        logger.info("Timed out waiting for color setting: %s",e)
-        
+        logger.info("Timed out waiting for color setting: %s", e)
+
     k = cv2.waitKey(5) & 0xFF
-    if k == 27: # Exit when the escape key is hit
+    if k == 27:  # Exit when the escape key is hit
         break
     if k == ord('s'):
         config = {
@@ -377,14 +389,14 @@ while (1):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     if sliders:
         # lower hsv values
-        lower_h = cv2.getTrackbarPos('H','lower')
-        lower_s = cv2.getTrackbarPos('S','lower')
-        lower_v = cv2.getTrackbarPos('V','lower')
+        lower_h = cv2.getTrackbarPos('H', 'lower')
+        lower_s = cv2.getTrackbarPos('S', 'lower')
+        lower_v = cv2.getTrackbarPos('V', 'lower')
 
         # upper rgb values
-        upper_h = cv2.getTrackbarPos('H','upper')
-        upper_s = cv2.getTrackbarPos('S','upper')
-        upper_v = cv2.getTrackbarPos('V','upper')
+        upper_h = cv2.getTrackbarPos('H', 'upper')
+        upper_s = cv2.getTrackbarPos('S', 'upper')
+        upper_v = cv2.getTrackbarPos('V', 'upper')
 
     # range of HSV color values
     lower_green = np.array([lower_h, lower_s, lower_v])
@@ -394,8 +406,8 @@ while (1):
     mask = cv2.inRange(hsv, lower_green, upper_green)
 
     # sets the dilation and erosion factor
-    kernel = np.ones((2,2),np.uint8)
-    dots = np.ones((3,3),np.uint8)
+    kernel = np.ones((2, 2), np.uint8)
+    dots = np.ones((3, 3), np.uint8)
     # erodes and dilates the image
     if im_show:
         cv2.imshow('After cv2.inRange', mask)
@@ -407,13 +419,13 @@ while (1):
     if im_show:
         cv2.imshow('After cv2.morphologyEx', mask)
 
-    if cv2.__version__=='3.1.0':
-        dontcare, contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    if cv2.__version__ == '3.1.0':
+        dontcare, contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     else:
-        contours, hierarchy  = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    cube_found = False         # count number of contours that match our tests for cubes
+        contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    cube_found = False  # count number of contours that match our tests for cubes
 
-    count = 0             # count times through the loop below
+    count = 0  # count times through the loop below
     tape_heading = []
     tape_distance = []
     for contour in contours:
@@ -424,8 +436,8 @@ while (1):
             # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
             continue;  # jump to bottom of for loop
         if not is_aspect_ok:
-           print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
-           continue;  # jump to bottom of for loop
+            print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
+            continue;  # jump to bottom of for loop
         # Find the heading of this tape
         heading = find_heading(contour, width, height)
         tape_heading.append(heading)
@@ -434,11 +446,11 @@ while (1):
         tape_distance.append(distance)
     if len(tape_heading) == 2:
         data = {
-        "sender" : "vision",
-        "range" : distance,
-        "heading" : (tape_heading[0]+tape_heading[1])/2,
-        "message" : (tape_distance[0]+tape_distance[1])/2,
-        "status" : "ok",
+            "sender": "vision",
+            "range": distance,
+            "heading": (tape_heading[0] + tape_heading[1]) / 2,
+            "message": (tape_distance[0] + tape_distance[1]) / 2,
+            "status": "ok",
         }
         message = json.dumps(data)
         # Transmit the message
@@ -449,9 +461,9 @@ while (1):
         logger.info(message)
     else:
         data = {
-           "sender" : "vision",
-           "message" : "range and heading",
-           "status" : "no target",
+            "sender": "vision",
+            "message": "range and heading",
+            "status": "no target",
         }
         message = json.dumps(data)
         if tx_udp:
@@ -466,7 +478,7 @@ while (1):
         if not im_show:
             cv2.namedWindow('waitkey placeholder')
         k = cv2.waitKey(0)
-        if k == 27:         # wait for ESC key to exit
+        if k == 27:  # wait for ESC key to exit
             cv2.destroyAllWindows()
             print(tape_heading)
             break
