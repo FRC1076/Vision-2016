@@ -436,7 +436,7 @@ while 1:
     for contour in contours:
         count += 1
         is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
-        is_area_ok = (100 < cv2.contourArea(contour) < 20000)
+        is_area_ok = (25 < cv2.contourArea(contour) < 20000)
         if not is_area_ok:
             # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
             continue;  # jump to bottom of for loop
