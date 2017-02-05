@@ -435,14 +435,14 @@ while 1:
     tape_distance = []
     for contour in contours:
         count += 1
-        is_aspect_ok = (0.3 < aspect_ratio(contour) < 1.5)
+        is_aspect_ok = (0.28 < aspect_ratio(contour) < 1.5)
         is_area_ok = (25 < cv2.contourArea(contour) < 20000)
         if not is_area_ok:
             # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
-            continue;  # jump to bottom of for loop
+            continue  # jump to bottom of for loop
         if not is_aspect_ok:
             print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
-            continue;  # jump to bottom of for loop
+            continue  # jump to bottom of for loop
         # Find the heading of this tape
         heading = find_heading(contour, width, height)
         tape_heading.append(heading)
