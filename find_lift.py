@@ -113,7 +113,7 @@ if (sys.argv[3] == 'objecttracking') and (__name__ == '__main__'):
         ObjectTracker().start_tracking()
 
 # do not log images (set to true if you want images logged)
-grabbing = False
+grabbing = True
 
 # log every 20th image
 grab_period = 20
