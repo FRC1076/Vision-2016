@@ -32,10 +32,10 @@ class FeatureExtractor(object):
     def extract_image_features(self, img):
         # Detect dense features
         kps = DenseDetector().detect(img)
-        #SIFT feature extractor
+        # SIFT feature extractor
         kps, fvs = SIFTExtractor().compute(img, kps)
         return fvs
-    #Extract centroids
+    # Extract centroids
     def get_centroids(self, input_map, num_samples_to_fit=10):
         kps_all = []
         count = 0
@@ -49,7 +49,7 @@ class FeatureExtractor(object):
             count += 1
 
             if count == num_samples_to_fit:
-                print "Make centroids for", item["label"]
+                print("Make centroids for", item["label"])
             cur_label = item['label']
             img = cv2.imread(item['image'])
             img = resize_to_size(img, 150)
@@ -67,7 +67,7 @@ class FeatureExtractor(object):
 def extract_feature_map(input_map, kmeans, centroids):
     feature_map = []
 
-    for items in input_map:
+    for item in input_map:
         temp_dict = {}
         temp_dict["label"] = item["label"]
 
@@ -82,7 +82,7 @@ def extract_feature_map(input_map, kmeans, centroids):
 
     return feature_map
 
-# Vector quantification
+# Vector quantizing
 class Quantizer(object):
     def __init__(self, num_clusters=32):
         self.num_dims = 128
@@ -122,7 +122,7 @@ class Quantizer(object):
         return self.normalize(fv_image)
 
 class DenseDetector(object):
-    def __init__(self, step_size = 20, feature_scale=40, img_bound=20):
+    def __init__(self, step_size=20, feature_scale=40, img_bound=20):
         self.detector = cv2.FeatureDetector_create("Dense")
         self.detector.setInt("initXyStep", step_size)
         self.detector.setInt("initFeatureScale", feature_scale)
@@ -149,7 +149,7 @@ def resize_to_size(input_image, new_size=150):
 
     return cv2.resize(input_image, new_size)
 
-if __name__=='__main__':
+if __name__ == '__main__':
     args = build_arg_parser().parse_args()
 
     input_map = []
