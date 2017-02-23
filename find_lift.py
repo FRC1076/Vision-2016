@@ -15,6 +15,9 @@ import subprocess
 from udp_channels import UDPChannel
 from sensor_message import RobotMessage
 from image_grabber import ImageGrabber
+import psutil
+import logging
+import os
 
 # do not log images (set to true if you want images logged)
 grabbing = False
@@ -34,11 +37,37 @@ else:
     printer = False
     wait = False
 
+def restart_program(input1, input2):
+
+    try:
+        p = psutil.Process(os.getpid())
+        for handler in p.get_open_files() + p.connections():
+            os.close(handler.fd)
+    except Exception, e:
+        logging.error(e)
+
+    python = sys.executable
+    os.execl(python, python, input1, input2)
+
+def receive_messages(im_show, sliders, printer, wait):
+    data, address = sock.recvfrom(4096)
+    if (data == "Toggle Interactive Mode") and imshow:
+        restart_program("not_interactive")
+    else:
+        restart_program("127.0.0.1", "interactive")
+    if data:
+        sent = sock.sendto(data, address)
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
 
 if grabbing:
     grabber = ImageGrabber(logger, grab_period=grab_period, grab_limit=1300)
+
+# Make a UDP Socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+server_address = ('localhost', 10000)
+sock.bind(server_address)
 
 # These are the hue saturation value
 # This works for close-up
@@ -97,6 +126,9 @@ config_fp.close()
 # from function fitting
 K_INCH_PIXELS = 1300
 CM_PER_INCH = 2.54
+
+
+
 
 
 def distance_in_cm_from_pixels(pixels):
@@ -388,6 +420,7 @@ while 1:
     if grabbing:
         grabber.grab(frame, message)
     time.sleep(.1)
+    receive_messages(im_show, sliders, printer, wait)
     if wait:
         if not im_show:
             cv2.namedWindow('waitkey placeholder')
