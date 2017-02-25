@@ -47,7 +47,7 @@ def restart_program(input1, input2):
         logging.error(e)
 
     python = sys.executable
-    os.execl(python, python, input1, input2)
+    os.execl(os.path.realpath(__file__), input1, input2)
 
 def receive_messages(im_show, sliders, printer, wait):
     data, address = sock.recvfrom(4096)
