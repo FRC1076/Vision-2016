@@ -1,5 +1,3 @@
 #!/bin/bash
-
-# replace the interfaces file with the appropriate manual eth0 config
-sudo cp interfaces /etc/network/interfaces
-
+#
+sudo cp dhcpcd.conf /etc/dhcpcd.conf
