@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # Code to find Cube for the WAPUR challenge and send range and heading information via UDP
 # Type this to run interactively:
 # python find_lift.py 127.0.0.1 interactive
@@ -217,7 +218,7 @@ else:
 # This doesn't run on systems that don't have this
 #
 try:
-    subprocess.Popen('v4l2-ctl -c exposure=30'.split())
+    subprocess.Popen('v4l2-ctl --device=/dev/video0 -c gain_automatic=0 -c white_balance_automatic=0 -c exposure=35 -c gain=0 -c auto_exposure=1 -c brightness=0 -c hue=-32 -c saturation=96'.split())
 except:
     print('Unable to set exposure using v4l2-ctl tool!')
 
