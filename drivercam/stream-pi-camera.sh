@@ -12,5 +12,20 @@ then
 else
     echo "mjpg_streamer is *NOT YET* running, so we'll start it up!";
     cd /usr/src/mjpg-streamer/mjpg-streamer-experimental
-    ./driver-video.sh
+
+    # Depending on how the camera gets mounted,
+    # you might need to:
+    #   flip image vertically    -vf
+    #   flip image horizontally  -hf
+    #   rotate the image 90 deg  -rot 90
+    #
+    #   Note that -p NNNN specifies the port number.
+    #   It ought to be in the legal FIRST port range.
+    #
+    #   Note:  connect to    http://$HOSTNAME:NNNN/?action=stream
+    #   to stream the video.    Should probably use python+openCV
+    #   on the receiving end so the small image can easily be scaled
+    #   up.
+    #
+    ./mjpg_streamer -o "output_http.so -p 8001 -w ./www" -i "input_raspicam.so -x 160 -y 120 -cfx gray -rot 90 -fps 10 -ex sports"
 fi
