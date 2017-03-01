@@ -8,7 +8,7 @@
 if [[ $(pidof mjpg_streamer) ]];
 then
     echo "mjpg_streamer is already streaming!";
-    echo "View stream at: http://$HOSTNAME:8001/?action=stream";
+    echo "View stream at: http://$HOSTNAME:5807/?action=stream";
 else
     echo "mjpg_streamer is *NOT YET* running, so we'll start it up!";
     cd /usr/src/mjpg-streamer/mjpg-streamer-experimental
@@ -27,5 +27,5 @@ else
     #   on the receiving end so the small image can easily be scaled
     #   up.
     #
-    ./mjpg_streamer -o "output_http.so -p 8001 -w ./www" -i "input_raspicam.so -x 160 -y 120 -cfx gray -rot 90 -fps 10 -ex sports"
+    ./mjpg_streamer -o "output_http.so -p 5807 -w ./www" -i "input_raspicam.so -x 160 -y 120 -cfx gray -rot 90 -fps 10 -ex sports"
 fi
