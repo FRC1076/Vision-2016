@@ -8,3 +8,6 @@ touch /var/log/vision.log
 # make sure we have write permissions on the file
 chmod 666 /var/log/vision.log
 
+# set static address on eth0 (.13 for vision)
+sudo cat dhcpcd-changes >> /etc/dhcpcd.conf
+
