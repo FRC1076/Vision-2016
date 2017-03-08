@@ -3,5 +3,5 @@
 # Driver cams should use 17 and 19, perhaps?
 #
 interface eth0
-static ip_address=10.10.76.17/24
-static domain_name_servers=10.10.76,1
+static ip_address=10.10.76.19/24
+static domain_name_servers=10.10.76.1
