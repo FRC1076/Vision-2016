@@ -15,7 +15,7 @@ import subprocess
 from udp_channels import UDPChannel
 from sensor_message import RobotMessage
 from image_grabber import ImageGrabber
-import psutil
+#import psutil
 import logging
 import os
 
@@ -38,7 +38,6 @@ else:
     wait = False
 
 def restart_program(input1, input2):
-
     try:
         p = psutil.Process(os.getpid())
         for handler in p.get_open_files() + p.connections():
@@ -249,7 +248,7 @@ else:
 # This doesn't run on systems that don't have this
 #
 try:
-    subprocess.Popen('v4l2-ctl -c exposure=30'.split())
+    subprocess.Popen('v4l2-ctl --device=/dev/video0 -c gain_automatic=0 -c white_balance_automatic=0 -c exposure=35 -c gain=0 -c auto_exposure=1 -c brightness=0 -c hue=-32 -c saturation=96'.split())
 except:
     print('Unable to set exposure using v4l2-ctl tool!')
 
@@ -394,7 +393,8 @@ while 1:
             "sender": "vision",
             "range": distance,
             "heading": (tape_heading[0] + tape_heading[1]) / 2,
-            "message": (tape_distance[0] + tape_distance[1]) / 2,
+            "average range": (tape_distance[0] + tape_distance[1]) / 2, 
+            "message": "range and heading",
             "status": "ok",
         }
         message = json.dumps(data)
@@ -420,7 +420,7 @@ while 1:
     if grabbing:
         grabber.grab(frame, message)
     time.sleep(.1)
-    receive_messages(im_show, sliders, printer, wait)
+    #receive_messages(im_show, sliders, printer, wait)
     if wait:
         if not im_show:
             cv2.namedWindow('waitkey placeholder')
