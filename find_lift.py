@@ -69,12 +69,12 @@ logger = logging.getLogger(__name__)
 grabber = ImageGrabber(logger, grab_period=grab_period, grab_limit=4000)
 
 # Make a UDP Socket
-try:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server_address = ('localhost', 10000)
-    sock.bind(server_address)
-except:
-    print("Crap")
+# try:
+#     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#     server_address = ('localhost', 10000)
+#     sock.bind(server_address)
+# except:
+#     print("Crap")
 
 # These are the hue saturation value
 # This works for close-up
@@ -285,12 +285,15 @@ if len(sys.argv) > 1:
     ip = sys.argv[1]
 else:
     ip = '10.10.76.2'
-while 1:
+channel = None
+while channel is not None:
     try:
         channel = UDPChannel(remote_ip=ip, remote_port=5880,
                              local_ip='0.0.0.0', local_port=5888, timeout_in_seconds=0.001)
+        time.sleep(0.1)
     except:
-        print("Something is wrong with the socket")
+        print("Unable to create UDP channel")
+
 while 1:
     try:
         while 1:
@@ -433,7 +436,6 @@ while 1:
             if grabbing:
                 grabber.grab(frame, message)
             time.sleep(.1)
-            # receive_messages(im_show, sliders, printer, wait)
             if wait:
                 if not im_show:
                     cv2.namedWindow('waitkey placeholder')
