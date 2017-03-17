@@ -21,7 +21,6 @@ from image_grabber import ImageGrabber
 # set to true if you want images logged
 grabbing = True
 
-import psutil
 import logging
 import os
 
@@ -298,9 +297,9 @@ while channel is None:
     try:
         channel = UDPChannel(remote_ip=ip, remote_port=5880,
                              local_ip='0.0.0.0', local_port=5888, timeout_in_seconds=0.001)
-        time.sleep(1)
     except:
         print("Unable to create UDP channel, sleeping 1 sec and retry.")
+        time.sleep(1)
 
 #
 # Just keep swimming
@@ -371,99 +370,99 @@ while 1:
             upper_s = cv2.getTrackbarPos('S', 'upper')
             upper_v = cv2.getTrackbarPos('V', 'upper')
 
-            # range of HSV color values
-            lower_green = np.array([lower_h, lower_s, lower_v])
-            upper_green = np.array([upper_h, upper_s, upper_v])
+        # range of HSV color values
+        lower_green = np.array([lower_h, lower_s, lower_v])
+        upper_green = np.array([upper_h, upper_s, upper_v])
 
-            # creates a bw image using the above range of values
-            mask = cv2.inRange(hsv, lower_green, upper_green)
+        # creates a bw image using the above range of values
+        mask = cv2.inRange(hsv, lower_green, upper_green)
 
-            # sets the dilation and erosion factor
-            kernel = np.ones((2, 2), np.uint8)
-            dots = np.ones((3, 3), np.uint8)
-            # erodes and dilates the image
-            if im_show:
-                cv2.imshow('After cv2.inRange', mask)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, dots)
-            # dilates and erodes the image
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-            if im_show:
-                cv2.imshow('After cv2.morphologyEx', mask)
+        # sets the dilation and erosion factor
+        kernel = np.ones((2, 2), np.uint8)
+        dots = np.ones((3, 3), np.uint8)
+        # erodes and dilates the image
+        if im_show:
+            cv2.imshow('After cv2.inRange', mask)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, dots)
+        # dilates and erodes the image
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        if im_show:
+            cv2.imshow('After cv2.morphologyEx', mask)
 
-            if cv2.__version__ == '3.1.0':
-                dontcare, contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            else:
-                contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if cv2.__version__ == '3.1.0':
+            dontcare, contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        else:
+            contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-            cube_found = False  # count number of contours that match our tests for cubes
-            count = 0  # count times through the loop below
-            tape_heading = []
-            tape_distance = []
-            for contour in contours:
-                count += 1
-                is_aspect_ok = (0.28 < aspect_ratio(contour) < 1.5)
-                is_area_ok = (25 < cv2.contourArea(contour) < 20000)
-                if not is_area_ok:
-                    # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
-                    continue  # jump to bottom of for loop
-                if not is_aspect_ok:
-                    print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
-                    continue  # jump to bottom of for loop
-                # Find the heading of this tape
-                heading = find_heading(contour, width, height)
-                tape_heading.append(heading)
-                # determines the distance of this tape
-                distance = find_distance(contour, width, height)
-                tape_distance.append(distance)
-            if len(tape_heading) == 2:
-                #
-                # Note, we negate the heading that we send to the rio so it looks
-                # more like it is a gyro and the robot is trying to drive straight.
-                #
-                data = {
-                    "sender": "vision",
-                    "range": distance,
-                    "heading": (tape_heading[0] + tape_heading[1]) / -2,
-                    "average range": (tape_distance[0] + tape_distance[1]) / 2,
-                    "message": "range and heading",
-                    "status": "ok",
-                }
-                message = json.dumps(data)
-                # Transmit the message
-                if tx_udp:
-                    channel.send_to(message)
+        cube_found = False  # count number of contours that match our tests for cubes
+        count = 0  # count times through the loop below
+        tape_heading = []
+        tape_distance = []
+        for contour in contours:
+            count += 1
+            is_aspect_ok = (0.28 < aspect_ratio(contour) < 1.5)
+            is_area_ok = (25 < cv2.contourArea(contour) < 20000)
+            if not is_area_ok:
+                # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
+                continue  # jump to bottom of for loop
+            if not is_aspect_ok:
+                print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
+                continue  # jump to bottom of for loop
+            # Find the heading of this tape
+            heading = find_heading(contour, width, height)
+            tape_heading.append(heading)
+            # determines the distance of this tape
+            distance = find_distance(contour, width, height)
+            tape_distance.append(distance)
+        if len(tape_heading) == 2:
+            #
+            # Note, we negate the heading that we send to the rio so it looks
+            # more like it is a gyro and the robot is trying to drive straight.
+            #
+            data = {
+                "sender": "vision",
+                "range": distance,
+                "heading": (tape_heading[0] + tape_heading[1]) / -2,
+                "average range": (tape_distance[0] + tape_distance[1]) / 2,
+                "message": "range and heading",
+                "status": "ok",
+            }
+            message = json.dumps(data)
+            # Transmit the message
+            if tx_udp:
+                channel.send_to(message)
+            if printer:
+                print("Tx:" + message)
+            logger.info(message)
+        else:
+            data = {
+                "sender": "vision",
+                "message": "range and heading",
+                "status": "no target",
+            }
+            message = json.dumps(data)
+
+            if tx_udp:
+                channel.send_to(message)
                 if printer:
                     print("Tx:" + message)
-                logger.info(message)
-            else:
-                data = {
-                    "sender": "vision",
-                    "message": "range and heading",
-                    "status": "no target",
-                }
-                message = json.dumps(data)
-
-                if tx_udp:
-                    channel.send_to(message)
-                    if printer:
-                        print("Tx:" + message)
-                    logging.info(message)
-            if grabbing:
-                grabber.grab(frame, message)
+                logging.info(message)
+        if grabbing:
+            grabber.grab(frame, message)
             #
             # I do not think we really want to sleep here...
             # MMMMUUUSSSSSTTT KKKKEEEEEPPPPPP  RRRRRUUNNNIIINNNGGGG
             # time.sleep(.1)
             # Is not this code totally redundant because it occurs earlier?
-            if wait:
-                if not im_show:
-                    cv2.namedWindow('waitkey placeholder')
-                k = cv2.waitKey(0)
-                if k == 27:  # wait for ESC key to exit
-                    cv2.destroyAllWindows()
-                    print(tape_heading)
-                    break
+        if wait:
+            if not im_show:
+                cv2.namedWindow('waitkey placeholder')
+            k = cv2.waitKey(0)
+            if k == 27:  # wait for ESC key to exit
+                cv2.destroyAllWindows()
+                print(tape_heading)
+                break
     except:
         print("Exception Caught")
