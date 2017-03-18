@@ -21,7 +21,7 @@ from image_grabber import ImageGrabber
 # set to true if you want images logged
 grabbing = True
 
-import psutil
+#import psutil
 import logging
 import os
 
