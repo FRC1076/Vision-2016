@@ -27,6 +27,9 @@ import os
 # log every grab_periodTH image
 grab_period = 10
 
+# camera angle fudge amount
+camera_angle_fudge = -2
+
 tx_udp = True
 if "interactive" in sys.argv:
     im_show = True
@@ -70,7 +73,10 @@ def receive_messages(im_show, sliders, printer, wait):
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
 
-grabber = ImageGrabber(logger, grab_period=grab_period, grab_limit=4000)
+logger.info("********** Vision Startup **********")
+
+if grabbing:
+    grabber = ImageGrabber(logger, grab_period=grab_period, grab_limit=4000)
 
 # Make a UDP Socket
 # try:
@@ -133,6 +139,8 @@ except:
     json.dump(config, config_fp)
 
 config_fp.close()
+
+logger.info(config)
 
 # from function fitting
 K_INCH_PIXELS = 1300
@@ -246,19 +254,41 @@ cap = cv2.VideoCapture(camera)
 if cv2.__version__ == '3.1.0':
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-    cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_FPS, 10)
 else:
     cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240)
-    cap.set(cv2.cv.CV_CAP_PROP_FPS, 30)
+    cap.set(cv2.cv.CV_CAP_PROP_FPS, 10)
 
+#
+# Loop here unti we can read something from the camera
+# Then it is likely safe to continue.
+#
+#
+
+got_an_image = False
+while not got_an_image:
+    got_an_image = True
+    try:
+        ret, frame = cap.read()
+    except Exception as e:
+        logger.info(e)
+        got_an_image = False
+        time.sleep(0.1)
+
+        
 #
 # This doesn't run on systems that don't have this
 #
-try:
-    subprocess.Popen('v4l2-ctl --device=/dev/video0 -c gain_automatic=0 -c white_balance_automatic=0 -c exposure=35 -c gain=0 -c auto_exposure=1 -c brightness=0 -c hue=-32 -c saturation=96'.split())
-except:
-    print('Unable to set exposure using v4l2-ctl tool!')
+params_set = False
+while not params_set:
+    params_set = True
+    try:
+        subprocess.check_call('sudo v4l2-ctl --device=/dev/video0 -c gain_automatic=0 -c white_balance_automatic=0 -c exposure=30 -c gain=0 -c auto_exposure=1 -c brightness=0 -c hue=-32 -c saturation=96'.split())
+    except:
+        logger.info('Unable to set exposure using v4l2-ctl tool; Plug in the camera!')
+        time.sleep(5)
+        params_set = False
 
 if sliders:
     # creates slider windows
@@ -298,6 +328,7 @@ while channel is None:
         channel = UDPChannel(remote_ip=ip, remote_port=5880,
                              local_ip='0.0.0.0', local_port=5888, timeout_in_seconds=0.001)
     except:
+        logger.info("Waiting for network in order to setup UDP channel.")
         print("Unable to create UDP channel, sleeping 1 sec and retry.")
         time.sleep(1)
 
@@ -409,6 +440,8 @@ while 1:
                 continue  # jump to bottom of for loop
             if not is_aspect_ok:
                 print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
+                logger.info("Contour fails aspect test:" + str(aspect_ratio(contour)) + " Contour: " + str(count) + " of " + str(len(contours)))
+                
                 continue  # jump to bottom of for loop
             # Find the heading of this tape
             heading = find_heading(contour, width, height)
@@ -424,7 +457,7 @@ while 1:
             data = {
                 "sender": "vision",
                 "range": distance,
-                "heading": (tape_heading[0] + tape_heading[1]) / -2,
+                "heading": ((tape_heading[0] + tape_heading[1]) / -2.0) + camera_angle_fudge,
                 "average range": (tape_distance[0] + tape_distance[1]) / 2,
                 "message": "range and heading",
                 "status": "ok",

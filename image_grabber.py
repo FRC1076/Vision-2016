@@ -40,6 +40,7 @@ class ImageGrabber:
             
         self.dir_name = "Images{:04d}".format(dir_index)
         os.mkdir(self.dir_name)
+        logger.info("Capturing images to " + self.dir_name)
         
 
     def grab(self, image, log_result=None):
