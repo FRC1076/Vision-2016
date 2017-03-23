@@ -12,3 +12,6 @@ sudo cat dhcpcd-changes >> /etc/dhcpcd.conf
 cp find-lift.sh /home/pi/.config/lxsession/LXDE-pi
 chmod 755 /home/pi/.config/lxsession/LXDE-pi/find-lift.sh
 echo "@/home/pi/.config/lxsession/LXDE-pi/find-lift.sh" >> /home/pi/.config/lxsession/LXDE-pi/autostart
+
+# add convenience symlink to the autostart directory (startup-dir)
+ln -s /home/pi/.config/lxsession/LXDE-pi/autostart ~/startup-dir
